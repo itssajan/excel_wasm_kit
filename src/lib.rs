@@ -2,7 +2,7 @@ extern crate calamine;
 extern crate serde_json;
 extern crate wasm_bindgen;
 
-use calamine::{open_workbook, Reader, SheetVisible, Xlsx, DataType};
+use calamine::{Reader, SheetVisible, Xlsx, DataType};
 use serde_json::json;
 use wasm_bindgen::prelude::*;
 
