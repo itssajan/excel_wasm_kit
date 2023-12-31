@@ -1,5 +1,5 @@
 [package]
-name = "saj_wasm_excel_reader"
+name = "wasm_excel_reader"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,11 +1,8 @@
+import React, { useEffect, useState, useCallback } from 'react';
 import init, {
   get_worksheet_names,
   get_worksheet_row,
 } from '../pkg/saj_wasm_excel_reader.js';
-import React, { useEffect, useRef, useState } from 'react';
-
-const delay = (ms: number = 1000) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 export type SheetMeta = {
   "name": string,
@@ -15,14 +12,11 @@ export type SheetMeta = {
 
 export function useSheet() {
   const [sheets, setSheets] = useState<SheetMeta[]>([]);
-  const [activeSheet, setActiveSheet] = useState<SheetMeta | null>();
-  const [activeSheetData, setActiveSheetData] = useState<any>([]);
+  const [activeSheet, setActiveSheet] = useState<SheetMeta | null>(null);
+  const [activeSheetData, setActiveSheetData] = useState<any[]>([]);
   const [loadingText, setLoadingText] = useState('');
-
   const [fileData, setFileData] = useState<any>(null);
-  const [worker, setWorker] = useState<Worker>();
-
-  const loadRowIntervalRef = useRef<any>();
+  const [worker, setWorker] = useState<Worker | null>(null);
 
   useEffect(() => {
     const newWorker = new Worker(
@@ -35,15 +29,13 @@ export function useSheet() {
 
       switch (type) {
         case 'rowData':
-          //   console.log('useEffect ~ data:', data);
-          if (!data) clearInterval(loadRowIntervalRef.current);
-          else {
+          if (data) {
             setActiveSheetData((prevData: any) => [...prevData, data]);
+            loadNextRow(data.length + 1); // Load the next row
           }
           break;
         case 'getRowDataError':
-          // console.error(data);
-          clearInterval(loadRowIntervalRef.current);
+          console.error(data);
           break;
       }
     };
@@ -56,14 +48,14 @@ export function useSheet() {
     };
   }, []);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setSheets([]);
     setActiveSheet(null);
     setActiveSheetData([]);
     setFileData(null);
-  };
+  }, []);
 
-  const loadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const loadFile = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     reset();
@@ -74,39 +66,31 @@ export function useSheet() {
     try {
       const _data = get_worksheet_names(data);
       const { worksheets } = JSON.parse(_data);
-      console.log('loadFile ~ worksheets:', worksheets);
-      const visibleSheets = worksheets.filter(
-        (sheet: any) => sheet.visibility === 'Visible'
-      );
+      const visibleSheets = worksheets.filter((sheet: SheetMeta) => sheet.visibility === 'Visible');
       setSheets(visibleSheets);
     } catch (error) {
-      console.log({ error });
+      console.error(error);
     }
-  };
+  }, [reset]);
 
-  const getSheetData = async (sheet: SheetMeta) => {
+  const loadNextRow = useCallback((rowIndex: number) => {
+    if (activeSheet && rowIndex < activeSheet.rows) {
+      setLoadingText(`Loading row ${rowIndex} / ${activeSheet.rows}`);
+      worker?.postMessage({
+        type: 'getRowData',
+        data: fileData,
+        sheetName: activeSheet.name,
+        rowIndex,
+      });
+    }
+  }, [activeSheet, fileData, worker]);
+
+  const getSheetData = useCallback((sheet: SheetMeta) => {
     setActiveSheetData([]);
     setLoadingText('');
-    clearInterval(loadRowIntervalRef.current);
     setActiveSheet(sheet);
-    // const data = fileData;
-    let rowIndex = 0;
-    loadRowIntervalRef.current = setInterval(() => {
-      try {
-        setLoadingText(`Loading row ${rowIndex} / ${sheet.rows}`);
-        worker?.postMessage({
-          type: 'getRowData',
-          data: fileData,
-          sheetName: sheet.name,
-          rowIndex,
-        });
-        rowIndex++;
-      } catch (error) {
-        console.error(error);
-        clearInterval(loadRowIntervalRef.current);
-      }
-    }, 10);
-  };
+    loadNextRow(0);
+  }, [loadNextRow]);
 
   return {
     sheets,
