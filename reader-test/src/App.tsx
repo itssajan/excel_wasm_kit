@@ -2,45 +2,46 @@ import React, { useState } from 'react';
 import { useSheet } from './sheet.context.js';
 
 function App() {
-  const { loadFile, sheets, activeSheet, activeSheetData, getSheetData } =
+  const { loadFile, sheets, activeSheet, activeSheetData, getSheetData, loadingText } =
     useSheet();
 
-    const [loading, setLoading] = useState(false)
+    // const [loading, setLoading] = useState(false)
 
     const loadSheetData = async (sheetName: string) => {
-      setLoading(true)
+      // setLoading(true)
       await getSheetData(sheetName)
-      setLoading(false)
+      // setLoading(false)
     }
 
   return (
-    <>
+    <div className='p-2 m-2'>
       <input type="file" onChange={loadFile} accept=".xls,.xlsx" />
-      <ul>
+      <ul className='flex space-x-2 bg-slate-300 relative'>
         {sheets.map((sheet: any) => (
-          <li key={sheet.name} onClick={() => loadSheetData(sheet.name)}>
+          <li className={`p-2 cursor-pointer ${activeSheet === sheet.name ? 'font-bold': ''}`} key={sheet.name} onClick={() => loadSheetData(sheet.name)}>
             {sheet.name}
           </li>
         ))}
+        { loadingText && <span className='absolute right-2 top-2 text-sm text-slate-500'>{loadingText}</span> }
       </ul>
       <div>
-        <h1>{activeSheet}</h1>
-        {
-          loading && <p>Loading...</p>
-        }
-        <table>
+        <table className='table-fixed'>
           <tbody>
-          {activeSheetData.map((row: any, index: number) => (
-            <tr key={`row-${index}`}>
-              {row.map((cell: any) => (
-                <td key={cell}>{cell}</td>
+          {activeSheetData.map((row: any, index: number) => {
+            let clsName = `p-2 text-sm ${index % 2 ? 'bg-slate-200 text-slate-700': ''}`
+            return (
+              <tr key={`row-${index}`}>
+              <th key={`row-head-${index}`} className={clsName}>{index + 1}</th>
+              {row.map((cell: any, cIndex: number) => (
+                <td className={clsName} key={`cell-${index}-${cIndex}`}>{cell}</td>
               ))}
             </tr>
-          ))}
+            )
+          })}
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }
 
