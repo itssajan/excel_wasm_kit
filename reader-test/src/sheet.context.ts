@@ -7,9 +7,15 @@ import React, { useEffect, useRef, useState } from 'react';
 const delay = (ms: number = 1000) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
+export type SheetMeta = {
+  "name": string,
+  "rows": number,
+  "visibility": string
+}
+
 export function useSheet() {
-  const [sheets, setSheets] = useState([]);
-  const [activeSheet, setActiveSheet] = useState('');
+  const [sheets, setSheets] = useState<SheetMeta[]>([]);
+  const [activeSheet, setActiveSheet] = useState<SheetMeta | null>();
   const [activeSheetData, setActiveSheetData] = useState<any>([]);
   const [loadingText, setLoadingText] = useState('');
 
@@ -52,7 +58,7 @@ export function useSheet() {
 
   const reset = () => {
     setSheets([]);
-    setActiveSheet('');
+    setActiveSheet(null);
     setActiveSheetData([]);
     setFileData(null);
   };
@@ -68,6 +74,7 @@ export function useSheet() {
     try {
       const _data = get_worksheet_names(data);
       const { worksheets } = JSON.parse(_data);
+      console.log('loadFile ~ worksheets:', worksheets);
       const visibleSheets = worksheets.filter(
         (sheet: any) => sheet.visibility === 'Visible'
       );
@@ -77,20 +84,20 @@ export function useSheet() {
     }
   };
 
-  const getSheetData = async (sheetName: string) => {
+  const getSheetData = async (sheet: SheetMeta) => {
     setActiveSheetData([]);
     setLoadingText('');
     clearInterval(loadRowIntervalRef.current);
-    setActiveSheet(sheetName);
+    setActiveSheet(sheet);
     // const data = fileData;
     let rowIndex = 0;
     loadRowIntervalRef.current = setInterval(() => {
       try {
-        setLoadingText(`Loading row ${rowIndex}`);
+        setLoadingText(`Loading row ${rowIndex} / ${sheet.rows}`);
         worker?.postMessage({
           type: 'getRowData',
           data: fileData,
-          sheetName,
+          sheetName: sheet.name,
           rowIndex,
         });
         rowIndex++;
@@ -98,7 +105,7 @@ export function useSheet() {
         console.error(error);
         clearInterval(loadRowIntervalRef.current);
       }
-    }, 50);
+    }, 10);
   };
 
   return {
