@@ -8,7 +8,7 @@ self.onmessage = async (e) => {
   switch (type) {
     case 'init':
       console.log('self.onmessage= ~ init');
-      wasmModule = await import('@milojs/excel-kit');
+      wasmModule = await import('../pkg/web/web_index.js');
       await wasmModule.default();
       break;
     case 'getRowData':
@@ -21,7 +21,7 @@ self.onmessage = async (e) => {
         postMessage({ type: 'rowData', data: JSON.parse(rowJson) });
       } catch (error: any) {
         console.log('self.onmessage= ~ error:', error);
-        postMessage({ type: 'getRowDataError', data: '{message: error.message}' });
+        postMessage({ type: 'getRowDataError', data: {message: error.message} });
       }
       break;
   }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 // import * as excelKit from '@milojs/excel-kit';
-import { get_worksheet_names } from '@milojs/excel-kit';
+import init, { get_worksheet_names } from '../pkg/web';
 
 export type SheetMeta = {
   name: string;
@@ -28,8 +28,9 @@ export function useSheet() {
       switch (type) {
         case 'rowData':
           if (data) {
-            setActiveSheetData((prevData: any) => [...prevData, data]);
-            loadNextRow(data.length + 1); // Load the next row
+            // setActiveSheetData((prevData: any) => [...prevData, data]);
+            // loadNextRow(data.length + 1); // Load the next row
+            setActiveSheetData(prevData => [...prevData, data]);
           }
           break;
         case 'getRowDataError':
@@ -58,7 +59,7 @@ export function useSheet() {
       const file = event.target.files?.[0];
       if (!file) return;
       reset();
-      // await init();
+      await init();
 
       const data = new Uint8Array(await file.arrayBuffer());
       setFileData(data);
@@ -76,20 +77,28 @@ export function useSheet() {
     [reset]
   );
 
-  const loadNextRow = useCallback(
-    (rowIndex: number) => {
-      if (activeSheet && rowIndex < activeSheet.rows) {
-        setLoadingText(`Loading row ${rowIndex} / ${activeSheet.rows}`);
-        worker?.postMessage({
-          type: 'getRowData',
-          data: fileData,
-          sheetName: activeSheet.name,
-          rowIndex,
-        });
-      }
-    },
-    [activeSheet, fileData, worker]
-  );
+  const loadNextRow = useCallback((rowIndex: number) => {
+    if (activeSheet && rowIndex < activeSheet.rows) {
+      setLoadingText(`Loading row ${rowIndex + 1} / ${activeSheet.rows}`);
+      worker?.postMessage({
+        type: 'getRowData',
+        data: fileData,
+        sheetName: activeSheet.name,
+        rowIndex,
+      });
+      // Increment rowIndex for the next call
+      loadNextRow(rowIndex + 1);
+    }
+  }, [activeSheet, fileData, worker]);
+
+  useEffect(() => {
+    if (activeSheet && fileData) {
+      setActiveSheetData([]); // Reset sheet data
+      loadNextRow(0); // Start loading rows from the beginning
+    }
+  }, [activeSheet, fileData, loadNextRow]); // Dependency on activeSheet and fileData
+
+
 
   const getSheetData = useCallback(
     (sheet: SheetMeta) => {

@@ -5,14 +5,15 @@
   "main": "pkg/nodejs/nodejs_index.js",
   "module": "pkg/web/web_index.js",
   "files": [
-    "pkg/*"
+    "pkg/nodejs/*",
+    "pkg/web/*"
   ],
   "scripts": {
     "build": "npm run build:node && npm run build:web",
     "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index",
     "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index",
-    "prebuild": "rm -rf pkg",
-    "postbuild": "rm pkg/**/.gitignore"
+    "prebuild": "rm -rf ./pkg",
+    "postbuild": "rm ./pkg/**/.gitignore"
   },
   "keywords": [],
   "author": "",
