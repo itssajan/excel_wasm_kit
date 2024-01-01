@@ -22,6 +22,10 @@ jobs:
           toolchain: stable
           override: true
 
+      # Install wasm-pack using cargo
+      - name: Install wasm-pack
+        run: cargo install wasm-pack          
+
       # Build the Rust project for Node.js
       - name: Build for Node.js
         run: |
