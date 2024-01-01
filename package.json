@@ -1,6 +1,6 @@
 {
   "name": "@milojs/excel-kit",
-  "version": "0.0.1",
+  "version": "0.0.10",
   "description": "Excel wasm kit",
   "main": "pkg/nodejs_index.js",
   "module": "pkg/web_index.js",
@@ -8,7 +8,10 @@
     "pkg/*"
   ],
   "scripts": {
-    "build": "wasm-pack build"
+    "build": "npm run build:node && npm run build:web",
+    "build:node": "wasm-pack build --target nodejs --out-name nodejs_index",
+    "build:web": "wasm-pack build --target web --out-name web_index",
+    "postbuild": "rm pkg/.gitignore"
   },
   "keywords": [],
   "author": "",
