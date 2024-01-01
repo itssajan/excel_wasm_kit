@@ -7,7 +7,7 @@ self.onmessage = async (e) => {
 
   switch (type) {
     case 'init':
-      wasmModule = await import('../pkg/saj_wasm_excel_reader.js');
+      wasmModule = await import('@milojs/excel-kit');
       await wasmModule.default();
       break;
     case 'getRowData':
