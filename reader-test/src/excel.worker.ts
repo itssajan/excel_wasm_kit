@@ -7,6 +7,7 @@ self.onmessage = async (e) => {
 
   switch (type) {
     case 'init':
+      console.log('self.onmessage= ~ init');
       wasmModule = await import('@milojs/excel-kit');
       await wasmModule.default();
       break;
