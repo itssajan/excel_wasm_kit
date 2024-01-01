@@ -1,6 +1,6 @@
 {
   "name": "@milojs/excel-kit",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Excel wasm kit",
   "main": "index.js",
   "scripts": {
