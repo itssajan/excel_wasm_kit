@@ -1,5 +1,5 @@
 [package]
-name = "wasm_excel_reader"
+name = "excel-kit"
 version = "0.0.1"
 edition = "2021"
 

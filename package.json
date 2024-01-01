@@ -10,8 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build:node && npm run build:web",
-    "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index",
-    "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index",
+    "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope milojs",
+    "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope milojs",
     "prebuild": "rm -rf ./pkg",
     "postbuild": "rm ./pkg/**/.gitignore"
   },
