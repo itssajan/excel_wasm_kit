@@ -1,0 +1,46 @@
+name: Publish npm package
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # Set up Rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      # Build the Rust project for Node.js
+      - name: Build for Node.js
+        run: |
+          wasm-pack build --target nodejs --out-name nodejs_index
+
+      # Build the Rust project for Web
+      - name: Build for Web
+        run: |
+          wasm-pack build --target web --out-name web_index
+
+      # Set up Node.js
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '20.x'
+          registry-url: 'https://registry.npmjs.org/'
+          scope: '@milojs'
+
+      # Install npm dependencies and publish
+      - run: npm ci
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
