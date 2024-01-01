@@ -30,11 +30,13 @@ jobs:
       - name: Build for Node.js
         run: |
           wasm-pack build --target nodejs --out-name nodejs_index
+          rm pkg/.gitignore
 
       # Build the Rust project for Web
       - name: Build for Web
         run: |
           wasm-pack build --target web --out-name web_index
+          rm pkg/.gitignore
 
       # Set up Node.js
       - uses: actions/setup-node@v2
