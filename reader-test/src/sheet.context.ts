@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 // import * as excelKit from '@milojs/excel-kit';
-import init, { get_worksheet_names } from '../pkg/web';
+import init, { get_worksheet_names } from '@milojs/excel-kit';
 
 export type SheetMeta = {
   name: string;
