@@ -1,14 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import init, {
-  get_worksheet_names,
-  get_worksheet_row,
-} from '../pkg/saj_wasm_excel_reader.js';
+// import * as excelKit from '@milojs/excel-kit';
+import { get_worksheet_names } from '@milojs/excel-kit';
 
 export type SheetMeta = {
-  "name": string,
-  "rows": number,
-  "visibility": string
-}
+  name: string;
+  rows: number;
+  visibility: string;
+};
 
 export function useSheet() {
   const [sheets, setSheets] = useState<SheetMeta[]>([]);
@@ -55,42 +53,53 @@ export function useSheet() {
     setFileData(null);
   }, []);
 
-  const loadFile = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    reset();
-    await init();
+  const loadFile = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      reset();
+      // await init();
 
-    const data = new Uint8Array(await file.arrayBuffer());
-    setFileData(data);
-    try {
-      const _data = get_worksheet_names(data);
-      const { worksheets } = JSON.parse(_data);
-      const visibleSheets = worksheets.filter((sheet: SheetMeta) => sheet.visibility === 'Visible');
-      setSheets(visibleSheets);
-    } catch (error) {
-      console.error(error);
-    }
-  }, [reset]);
+      const data = new Uint8Array(await file.arrayBuffer());
+      setFileData(data);
+      try {
+        const _data = get_worksheet_names(data);
+        const { worksheets } = JSON.parse(_data);
+        const visibleSheets = worksheets.filter(
+          (sheet: SheetMeta) => sheet.visibility === 'Visible'
+        );
+        setSheets(visibleSheets);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [reset]
+  );
 
-  const loadNextRow = useCallback((rowIndex: number) => {
-    if (activeSheet && rowIndex < activeSheet.rows) {
-      setLoadingText(`Loading row ${rowIndex} / ${activeSheet.rows}`);
-      worker?.postMessage({
-        type: 'getRowData',
-        data: fileData,
-        sheetName: activeSheet.name,
-        rowIndex,
-      });
-    }
-  }, [activeSheet, fileData, worker]);
+  const loadNextRow = useCallback(
+    (rowIndex: number) => {
+      if (activeSheet && rowIndex < activeSheet.rows) {
+        setLoadingText(`Loading row ${rowIndex} / ${activeSheet.rows}`);
+        worker?.postMessage({
+          type: 'getRowData',
+          data: fileData,
+          sheetName: activeSheet.name,
+          rowIndex,
+        });
+      }
+    },
+    [activeSheet, fileData, worker]
+  );
 
-  const getSheetData = useCallback((sheet: SheetMeta) => {
-    setActiveSheetData([]);
-    setLoadingText('');
-    setActiveSheet(sheet);
-    loadNextRow(0);
-  }, [loadNextRow]);
+  const getSheetData = useCallback(
+    (sheet: SheetMeta) => {
+      setActiveSheetData([]);
+      setLoadingText('');
+      setActiveSheet(sheet);
+      loadNextRow(0);
+    },
+    [loadNextRow]
+  );
 
   return {
     sheets,
