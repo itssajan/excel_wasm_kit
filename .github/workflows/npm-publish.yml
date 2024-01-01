@@ -44,7 +44,7 @@ jobs:
           scope: '@milojs'
 
       # Install npm dependencies and publish
-      - run: npm ci
+      # - run: npm ci
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
