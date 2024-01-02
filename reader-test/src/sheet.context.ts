@@ -92,7 +92,7 @@ export function useSheet() {
   );
 
   const loadNextRow = useCallback((rowIndex: number) => {
-    if (activeSheet && rowIndex < activeSheet.rows && rowIndex < ROW_LIMIT) {
+    if (activeSheet && rowIndex < activeSheet.rows) {
       setLoadingText(`Loading row ${rowIndex + 1} / ${activeSheet.rows}`);
       worker?.postMessage({
         type: 'getRowData',
