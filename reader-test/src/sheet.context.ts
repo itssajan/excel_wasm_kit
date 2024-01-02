@@ -8,9 +8,12 @@ export type SheetMeta = {
   visibility: string;
 };
 
+const ROW_LIMIT = 100;
+
 export function useSheet() {
   const [sheets, setSheets] = useState<SheetMeta[]>([]);
   const [activeSheet, setActiveSheet] = useState<SheetMeta | null>(null);
+  const [processedRow, setProcessedRow] = useState<number>(0);
   const [activeSheetData, setActiveSheetData] = useState<any[]>([]);
   const [loadingText, setLoadingText] = useState('');
   const [fileData, setFileData] = useState<any>(null);
@@ -30,7 +33,9 @@ export function useSheet() {
           if (data) {
             // setActiveSheetData((prevData: any) => [...prevData, data]);
             // loadNextRow(data.length + 1); // Load the next row
-            setActiveSheetData(prevData => [...prevData, data]);
+            const row = JSON.parse(data.row)
+            setActiveSheetData(prevData => [...prevData, row]);
+            setProcessedRow(data.rowIndex + 1);
           }
           break;
         case 'getRowDataError':
@@ -47,18 +52,25 @@ export function useSheet() {
     };
   }, []);
 
+  useEffect(() => {
+    loadNextRow(processedRow);
+  }, [processedRow]);
+
   const reset = useCallback(() => {
     setSheets([]);
     setActiveSheet(null);
     setActiveSheetData([]);
     setFileData(null);
+    setLoadingText('');
   }, []);
 
   const loadFile = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
+      setLoadingText('Loading file...');
+      reset();
       const file = event.target.files?.[0];
       if (!file) return;
-      reset();
+      // @ts-ignore
       await init();
 
       const data = new Uint8Array(await file.arrayBuffer());
@@ -70,15 +82,17 @@ export function useSheet() {
           (sheet: SheetMeta) => sheet.visibility === 'Visible'
         );
         setSheets(visibleSheets);
-      } catch (error) {
+        setLoadingText('');
+      } catch (error: any) {
         console.error(error);
+        setLoadingText('Error loading file: ' + error.message || '');
       }
     },
     [reset]
   );
 
   const loadNextRow = useCallback((rowIndex: number) => {
-    if (activeSheet && rowIndex < activeSheet.rows) {
+    if (activeSheet && rowIndex < activeSheet.rows && rowIndex < ROW_LIMIT) {
       setLoadingText(`Loading row ${rowIndex + 1} / ${activeSheet.rows}`);
       worker?.postMessage({
         type: 'getRowData',
@@ -87,7 +101,7 @@ export function useSheet() {
         rowIndex,
       });
       // Increment rowIndex for the next call
-      loadNextRow(rowIndex + 1);
+      // loadNextRow(rowIndex + 1);
     }
   }, [activeSheet, fileData, worker]);
 
@@ -102,10 +116,8 @@ export function useSheet() {
 
   const getSheetData = useCallback(
     (sheet: SheetMeta) => {
-      setActiveSheetData([]);
       setLoadingText('');
       setActiveSheet(sheet);
-      loadNextRow(0);
     },
     [loadNextRow]
   );
