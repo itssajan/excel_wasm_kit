@@ -19,10 +19,13 @@ self.onmessage = async (e) => {
       }
       try {
         const rowJson = wasmModule.get_worksheet_row(data, sheetName, rowIndex);
-        postMessage({ type: 'rowData', data: JSON.parse(rowJson) });
+        postMessage({ type: 'rowData', data: {
+          row: rowJson,
+          rowIndex,
+        } });
       } catch (error: any) {
         console.log('self.onmessage= ~ error:', error);
-        postMessage({ type: 'getRowDataError', data: {message: error.message} });
+        postMessage({ type: 'getRowDataError', error });
       }
       break;
   }

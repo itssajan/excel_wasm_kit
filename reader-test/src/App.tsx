@@ -31,7 +31,7 @@ function App() {
             key={sheet.name}
             onClick={() => loadSheetData(sheet)}
           >
-            {sheet.name}
+            {sheet.name} ({sheet.rows})
           </li>
         ))}
         {loadingText && (
