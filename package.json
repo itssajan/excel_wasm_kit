@@ -13,7 +13,8 @@
     "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope milojs",
     "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope milojs",
     "prebuild": "rm -rf ./pkg",
-    "postbuild": "rm ./pkg/**/.gitignore"
+    "postbuild": "rm ./pkg/**/.gitignore",
+    "test": "cargo test && node --test \"tests/*.test.mjs\""
   },
   "keywords": [],
   "author": "",
