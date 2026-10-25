@@ -1,6 +1,6 @@
 {
   "name": "@milojs/excel-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Fast, low-memory Excel reader (xlsx, xlsm, xlsb, xls, ods) for browsers and Node, in WebAssembly",
   "keywords": [
     "excel",
@@ -50,7 +50,8 @@
     "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope milojs",
     "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope milojs",
     "prebuild": "rm -rf ./pkg",
-    "postbuild": "rm ./pkg/**/.gitignore && node -e \"for (const f of ['pkg/web/web_index.d.ts','pkg/nodejs/nodejs_index.d.ts']) { const fs = require('fs'); fs.writeFileSync(f, '/// <reference lib=\\\"esnext.disposable\\\" />\\n' + fs.readFileSync(f, 'utf8')) }\"",
-    "test": "cargo test && node --test tests/workbook.test.mjs"
+    "postbuild": "rm ./pkg/**/.gitignore && node scripts/postbuild.cjs",
+    "test": "cargo test && node --test tests/workbook.test.mjs && npm run test:types",
+    "test:types": "npx -y -p typescript tsc --noEmit --strict --module nodenext --moduleResolution nodenext --target es2022 --lib es2022 tests/types/consumer.mts"
   }
 }
