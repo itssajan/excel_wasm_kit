@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // Holds the parsed workbook/sheet so the page never blocks; the page asks for row windows.
-import init, { Workbook, type Sheet } from "@milojs/excel-kit";
+import init, { Workbook, type Sheet } from "@kuramajs/excel";
 import type { Progress, ViewerRequest, ViewerResponse } from "./protocol";
 
 const post = (msg: ViewerResponse) => self.postMessage(msg);

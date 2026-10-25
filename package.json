@@ -1,5 +1,5 @@
 {
-  "name": "@milojs/excel-kit",
+  "name": "@kuramajs/excel",
   "version": "0.1.1",
   "description": "Fast, low-memory Excel reader (xlsx, xlsm, xlsb, xls, ods) for browsers and Node, in WebAssembly",
   "keywords": [
@@ -27,10 +27,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/itssajan/excel_wasm_kit.git"
+    "url": "git+https://github.com/kuramajs/excel.git"
   },
-  "homepage": "https://itssajan.github.io/excel_wasm_kit",
-  "bugs": "https://github.com/itssajan/excel_wasm_kit/issues",
+  "homepage": "https://kuramajs.github.io/excel",
+  "bugs": "https://github.com/kuramajs/excel/issues",
   "engines": {
     "node": ">=20"
   },
@@ -55,8 +55,8 @@
   ],
   "scripts": {
     "build": "npm run build:node && npm run build:web",
-    "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope milojs",
-    "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope milojs",
+    "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope kuramajs",
+    "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope kuramajs",
     "prebuild": "rm -rf ./pkg",
     "postbuild": "rm ./pkg/**/.gitignore && node scripts/postbuild.cjs",
     "test": "cargo test && node --test tests/workbook.test.mjs && npm run test:types",

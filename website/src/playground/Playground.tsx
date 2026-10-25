@@ -245,7 +245,7 @@ export default function Playground() {
         </div>
         <pre>
           <L>
-            <K>import</K> init, {"{ Workbook }"} <K>from</K> <S>"@milojs/excel-kit"</S>;
+            <K>import</K> init, {"{ Workbook }"} <K>from</K> <S>"@kuramajs/excel"</S>;
           </L>
           <L>
             <K>await</K> <F>init</F>();

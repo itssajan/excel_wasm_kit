@@ -1,8 +1,10 @@
-# excel-kit
+# @kuramajs/excel
 
 Fast, low-memory Excel reader for browsers and Node.js, written in Rust ([calamine](https://github.com/tafia/calamine)) and compiled to WebAssembly.
 
-**[Website](https://itssajan.github.io/excel_wasm_kit) · [Playground](https://itssajan.github.io/excel_wasm_kit/playground) · [Benchmarks](https://itssajan.github.io/excel_wasm_kit/benchmarks)**
+**[Website](https://kuramajs.github.io/excel) · [Playground](https://kuramajs.github.io/excel/playground) · [Benchmarks](https://kuramajs.github.io/excel/benchmarks)**
+
+Formerly published as `@milojs/excel-kit`.
 
 - Reads **xlsx, xlsm, xlsb, xls and ods**
 - **~3.5× faster than SheetJS** and **2–10× less memory** on large files ([benchmarks](#benchmarks))
@@ -15,7 +17,7 @@ Read-only: it does not write spreadsheets, and it reads values, not formulas or 
 ## Install
 
 ```bash
-npm install @milojs/excel-kit
+npm install @kuramajs/excel
 ```
 
 ## Quick start
@@ -23,7 +25,7 @@ npm install @milojs/excel-kit
 The same code works in the browser, a Web Worker and Node.js (ESM):
 
 ```js
-import init, { Workbook } from "@milojs/excel-kit";
+import init, { Workbook } from "@kuramajs/excel";
 
 await init(); // loads the wasm module (no-op in Node)
 
@@ -40,7 +42,7 @@ sheet.free(); // release wasm memory now (otherwise freed on GC)
 wb.free();
 ```
 
-CommonJS works too: `const { Workbook } = require("@milojs/excel-kit")`, with no `init()` needed.
+CommonJS works too: `const { Workbook } = require("@kuramajs/excel")`, with no `init()` needed.
 
 With [explicit resource management](https://github.com/tc39/proposal-explicit-resource-management) (Node 24+, TypeScript 5.2+), use `using wb = Workbook.open(bytes)` and the memory is freed at the end of the block.
 
@@ -70,7 +72,7 @@ const sheet = wb.sheet("Data", {
 });
 ```
 
-The callback fires about every 10,000 rows for xlsx and xlsm. Run it in a Web Worker and `postMessage` the progress to keep the page responsive (see the [playground source](https://github.com/itssajan/excel_wasm_kit/tree/master/website/src/playground)).
+The callback fires about every 10,000 rows for xlsx and xlsm. Run it in a Web Worker and `postMessage` the progress to keep the page responsive (see the [playground source](https://github.com/kuramajs/excel/tree/master/website/src/playground)).
 
 ## API
 
@@ -134,26 +136,26 @@ Parse a sheet and read every row, on Node 22 (Apple Silicon). Median of 3 runs. 
 
 | 47.5 MB xlsx, 1M rows | Time | Peak memory |
 |---|---:|---:|
-| **excel-kit** `forEachRow()` | **3.4 s** | **282 MB** |
-| **excel-kit** `iterRows()` | 3.4 s | 276 MB |
-| **excel-kit** `rows()` | 3.6 s | 1.3 GB |
+| **kurama** `forEachRow()` | **3.4 s** | **282 MB** |
+| **kurama** `iterRows()` | 3.4 s | 276 MB |
+| **kurama** `rows()` | 3.6 s | 1.3 GB |
 | exceljs (streaming reader) | 7.5 s | 730 MB |
 | SheetJS 0.20.3 | 12.3 s | 2.9 GB |
 | exceljs 4.4.0 | 16.2 s | 4.1 GB |
 
 | 10 MB xlsx, 220k rows | Time | Peak memory |
 |---|---:|---:|
-| **excel-kit** `forEachRow()` | **0.73 s** | **127 MB** |
-| **excel-kit** `rows()` | 0.76 s | 379 MB |
+| **kurama** `forEachRow()` | **0.73 s** | **127 MB** |
+| **kurama** `rows()` | 0.76 s | 379 MB |
 | exceljs (streaming reader) | 1.71 s | 327 MB |
 | SheetJS | 2.55 s | 675 MB |
 | exceljs | 2.87 s | 1.0 GB |
 
-In the [playground](https://itssajan.github.io/excel_wasm_kit/playground) (Chromium), excel-kit opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
+In the [playground](https://kuramajs.github.io/excel/playground) (Chromium), @kuramajs/excel opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
 
-**Bundle size:** 705 KB raw / 360 KB gzip (wasm + JS). That is larger than SheetJS (328 KB gzip) and exceljs (252 KB gzip). Most of it is codepage tables for legacy `.xls` files.
+**Bundle size:** 712 KB raw / 361 KB gzip (wasm + JS). That is larger than SheetJS (328 KB gzip) and exceljs (252 KB gzip). Most of it is codepage tables for legacy `.xls` files.
 
-Full results and how to reproduce them: [`bench/`](https://github.com/itssajan/excel_wasm_kit/tree/master/bench). Or [run it in your browser](https://itssajan.github.io/excel_wasm_kit/benchmarks) with your own file.
+Full results and how to reproduce them: [`bench/`](https://github.com/kuramajs/excel/tree/master/bench). Or [run it in your browser](https://kuramajs.github.io/excel/benchmarks) with your own file.
 
 ## Limitations
 
@@ -170,7 +172,7 @@ Requires Rust with the `wasm32-unknown-unknown` target, [wasm-pack](https://gith
 
 ```bash
 npm run build   # builds pkg/nodejs and pkg/web
-npm test        # Rust unit tests + node:test suite
+npm test        # Rust unit tests + node:test suite + TypeScript types check
 cd website && npm install && npm run dev   # website: playground, benchmarks, docs
 ```
 

@@ -1,10 +1,10 @@
 [package]
-name = "excel-kit"
+name = "kurama-excel"
 version = "0.1.1"
 edition = "2021"
 description = "Fast, low-memory Excel reader for browsers and Node, in WebAssembly"
 license = "MIT"
-repository = "https://github.com/itssajan/excel_wasm_kit"
+repository = "https://github.com/kuramajs/excel"
 
 [lib]
 crate-type = ["cdylib"]

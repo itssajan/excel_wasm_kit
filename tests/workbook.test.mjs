@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 // Import by package name so tests go through the package.json "exports" map
-import init, { Workbook } from "@milojs/excel-kit";
+import init, { Workbook } from "@kuramajs/excel";
 
 await init();
 const bytes = readFileSync(new URL("./fixtures/basic.xlsx", import.meta.url));
@@ -207,7 +207,7 @@ test("rowsSlice behaves like Array.slice, clamped", () => {
 });
 
 test("CommonJS require exposes the same API", () => {
-  const cjs = createRequire(import.meta.url)("@milojs/excel-kit");
+  const cjs = createRequire(import.meta.url)("@kuramajs/excel");
   const wb = cjs.Workbook.open(bytes);
   assert.equal(wb.sheets().length, 4);
 });

@@ -1,16 +1,17 @@
 {
-  "name": "excel-kit-website",
+  "name": "kurama-excel-website",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "brand": "node scripts/brand.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^5.0.7",
     "@astrojs/sitemap": "^3.7.4",
-    "@milojs/excel-kit": "file:..",
+    "@kuramajs/excel": "file:..",
     "@tanstack/react-virtual": "^3.14.22",
     "astro": "^6.4.8",
     "exceljs": "^4.4.0",
@@ -19,6 +20,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "typescript": "^7.0.2"

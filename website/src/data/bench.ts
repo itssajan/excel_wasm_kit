@@ -10,9 +10,9 @@ export const SIZES: Size[] = [
     file: "1.0 MB",
     rows: "22k rows",
     data: [
-      { lib: "excel-kit", variant: "forEachRow()", s: 0.1, mb: 96, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 0.1, mb: 89, ours: true },
-      { lib: "excel-kit", variant: "rows()", s: 0.11, mb: 130, ours: true },
+      { lib: "kurama", variant: "forEachRow()", s: 0.1, mb: 96, ours: true },
+      { lib: "kurama", variant: "iterRows()", s: 0.1, mb: 89, ours: true },
+      { lib: "kurama", variant: "rows()", s: 0.11, mb: 130, ours: true },
       { lib: "exceljs", variant: "stream", s: 0.28, mb: 146 },
       { lib: "SheetJS", variant: "0.20.3", s: 0.34, mb: 166 },
       { lib: "exceljs", variant: "4.4.0", s: 0.41, mb: 208 },
@@ -24,9 +24,9 @@ export const SIZES: Size[] = [
     file: "10.0 MB",
     rows: "220k rows",
     data: [
-      { lib: "excel-kit", variant: "forEachRow()", s: 0.73, mb: 127, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 0.72, mb: 126, ours: true },
-      { lib: "excel-kit", variant: "rows()", s: 0.76, mb: 379, ours: true },
+      { lib: "kurama", variant: "forEachRow()", s: 0.73, mb: 127, ours: true },
+      { lib: "kurama", variant: "iterRows()", s: 0.72, mb: 126, ours: true },
+      { lib: "kurama", variant: "rows()", s: 0.76, mb: 379, ours: true },
       { lib: "exceljs", variant: "stream", s: 1.71, mb: 327 },
       { lib: "SheetJS", variant: "0.20.3", s: 2.55, mb: 675 },
       { lib: "exceljs", variant: "4.4.0", s: 2.87, mb: 1000 },
@@ -38,9 +38,9 @@ export const SIZES: Size[] = [
     file: "47.5 MB",
     rows: "1M rows",
     data: [
-      { lib: "excel-kit", variant: "forEachRow()", s: 3.41, mb: 282, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 3.37, mb: 276, ours: true },
-      { lib: "excel-kit", variant: "rows()", s: 3.55, mb: 1326, ours: true },
+      { lib: "kurama", variant: "forEachRow()", s: 3.41, mb: 282, ours: true },
+      { lib: "kurama", variant: "iterRows()", s: 3.37, mb: 276, ours: true },
+      { lib: "kurama", variant: "rows()", s: 3.55, mb: 1326, ours: true },
       { lib: "exceljs", variant: "stream", s: 7.51, mb: 730 },
       { lib: "SheetJS", variant: "0.20.3", s: 12.29, mb: 2913 },
       { lib: "exceljs", variant: "4.4.0", s: 16.24, mb: 4111 },
@@ -49,7 +49,7 @@ export const SIZES: Size[] = [
 ];
 
 export const BUNDLE = [
-  { lib: "excel-kit (wasm + js)", raw: 705, gzip: 360, ours: true },
+  { lib: "kurama (wasm + js)", raw: 712, gzip: 361, ours: true },
   { lib: "SheetJS xlsx.full.min.js", raw: 930, gzip: 328 },
   { lib: "exceljs.min.js", raw: 925, gzip: 252 },
 ];

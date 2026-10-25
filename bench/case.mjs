@@ -9,19 +9,19 @@ const buf = readFileSync(file);
 
 const cases = {
   noop: async () => 0,
-  "excel-kit rows()": async () => {
+  "kurama rows()": async () => {
     const { Workbook } = require(process.env.EK_PKG ?? "../pkg/nodejs/nodejs_index.js");
     const wb = Workbook.open(buf);
     return wb.sheet(wb.sheets()[0].name).rows().length;
   },
-  "excel-kit iterRows()": async () => {
+  "kurama iterRows()": async () => {
     const { Workbook } = require(process.env.EK_PKG ?? "../pkg/nodejs/nodejs_index.js");
     const wb = Workbook.open(buf);
     let n = 0;
     for (const _row of wb.iterRows(wb.sheets()[0].name)) n++;
     return n;
   },
-  "excel-kit forEachRow()": async () => {
+  "kurama forEachRow()": async () => {
     const { Workbook } = require(process.env.EK_PKG ?? "../pkg/nodejs/nodejs_index.js");
     const wb = Workbook.open(buf);
     let n = 0;

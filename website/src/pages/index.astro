@@ -8,7 +8,7 @@ import { GITHUB, NPM, VERSION, url } from "../data/site";
 const quickStart = [
   {
     name: "basic.js",
-    code: `import init, { Workbook } from "@milojs/excel-kit";
+    code: `import init, { Workbook } from "@kuramajs/excel";
 
 await init();
 const wb = Workbook.open(await file.arrayBuffer());
@@ -47,12 +47,12 @@ const features = [
 ---
 
 <Base
-  title="excel-kit: fast Excel reader for JavaScript & WebAssembly"
+  title="@kuramajs/excel: fast Excel reader for JavaScript & WebAssembly"
   description="Read xlsx, xlsm, xlsb, xls and ods files in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
-    name: "@milojs/excel-kit",
+    name: "@kuramajs/excel",
     description: "Fast, low-memory Excel reader for browsers and Node.js, in Rust + WebAssembly.",
     codeRepository: GITHUB,
     programmingLanguage: ["Rust", "TypeScript", "JavaScript"],

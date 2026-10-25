@@ -1,5 +1,5 @@
 // Compiled by `npm run test:types` with a minimal lib and no skipLibCheck, as a strict consumer would.
-import init, { Workbook, type Cell } from "@milojs/excel-kit";
+import init, { Workbook, type Cell } from "@kuramajs/excel";
 
 await init();
 const wb = Workbook.open(new Uint8Array(0));
