@@ -1,6 +1,6 @@
 [package]
 name = "kurama-excel"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Fast, low-memory Excel reader for browsers and Node, in WebAssembly"
 license = "MIT"
