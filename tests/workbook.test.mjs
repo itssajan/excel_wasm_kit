@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 // Import by package name so tests go through the package.json "exports" map
-import init, { Workbook } from "@milojs/excel-kit";
+import init, { Workbook } from "@kuramajs/excel";
 
 await init();
 const bytes = readFileSync(new URL("./fixtures/basic.xlsx", import.meta.url));
@@ -81,6 +81,43 @@ test("iterRows supports early break and throws eagerly", () => {
   assert.deepEqual(it.return(), { done: true, value: undefined });
   assert.deepEqual(it.next(), { done: true, value: undefined });
   assert.throws(() => wb.iterRows("Missing"), (err) => err.code === "SHEET_NOT_FOUND");
+});
+
+test("streamed rows stay rectangular when the <dimension> tag is wrong", () => {
+  const wb = Workbook.open(readFileSync(new URL("./fixtures/bad_dimension.xlsx", import.meta.url)));
+  for (const name of ["Data", "People"]) {
+    const expected = wb.sheet(name).rows();
+    const streamed = [];
+    wb.forEachRow(name, (row, i) => { streamed[i] = row; });
+    assert.deepEqual(streamed, expected, name);
+    assert.deepEqual([...wb.iterRows(name)], expected, name);
+  }
+});
+
+test("iterRows hands the workbook back, so repeated and overlapping use works", () => {
+  const wb = Workbook.open(bytes);
+  const expected = wb.sheet("People").rows();
+
+  // sequential: finished, early-broken and freed iterators each return the workbook
+  for (let i = 0; i < 3; i++) assert.deepEqual([...wb.iterRows("People")], expected);
+  for (const _ of wb.iterRows("Data")) break;
+  const started = wb.iterRows("Data");
+  started.next();
+  started.return();
+  assert.deepEqual(wb.sheet("Offset").rows()[2], [null, null, "C3", null]);
+
+  // overlapping: other calls work while an iterator is open
+  const it = wb.iterRows("People");
+  assert.deepEqual(it.next().value, expected[0]);
+  assert.deepEqual(wb.sheets().map((s) => s.name), ["Data", "Secret", "People", "Offset"]);
+  assert.deepEqual(wb.sheet("People").rows(), expected);
+  assert.deepEqual([...wb.iterRows("Data")], wb.sheet("Data").rows());
+  assert.deepEqual([...it], expected.slice(1));
+
+  // and the workbook is still usable afterwards
+  assert.deepEqual([...wb.iterRows("People")], expected);
+  assert.throws(() => wb.iterRows("Missing"), (err) => err.code === "SHEET_NOT_FOUND");
+  assert.deepEqual([...wb.iterRows("People")], expected);
 });
 
 test("indexes rows and columns from A1", () => {
@@ -170,7 +207,7 @@ test("rowsSlice behaves like Array.slice, clamped", () => {
 });
 
 test("CommonJS require exposes the same API", () => {
-  const cjs = createRequire(import.meta.url)("@milojs/excel-kit");
+  const cjs = createRequire(import.meta.url)("@kuramajs/excel");
   const wb = cjs.Workbook.open(bytes);
   assert.equal(wb.sheets().length, 4);
 });

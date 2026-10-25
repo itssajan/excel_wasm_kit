@@ -1,4 +1,4 @@
-// Benchmark excel-kit vs SheetJS vs exceljs. Usage: node run.mjs [runs=3]
+// Benchmark @kuramajs/excel vs SheetJS vs exceljs. Usage: node run.mjs [runs=3]
 // Needs `npm run build` in the repo root and fixtures from bench/gen.rs (see README).
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const runs = Number(process.argv[2] ?? 3);
 const files = ["1mb", "10mb", "50mb"].map((f) => `fixtures/${f}.xlsx`);
-const cases = ["excel-kit rows()", "excel-kit iterRows()", "excel-kit forEachRow()", "sheetjs", "exceljs", "exceljs stream"];
+const cases = ["kurama rows()", "kurama iterRows()", "kurama forEachRow()", "sheetjs", "exceljs", "exceljs stream"];
 
 function runCase(name, file) {
   try {
@@ -50,7 +50,7 @@ for (const file of files) {
 const gz = (paths) => paths.reduce((sum, p) => sum + gzipSync(readFileSync(p)).length, 0) / 1024;
 const raw = (paths) => paths.reduce((sum, p) => sum + statSync(p).size, 0) / 1024;
 const bundles = {
-  "excel-kit (wasm + js)": ["../pkg/web/web_index_bg.wasm", "../pkg/web/web_index.js"],
+  "kurama (wasm + js)": ["../pkg/web/web_index_bg.wasm", "../pkg/web/web_index.js"],
   "sheetjs (xlsx.full.min.js)": [require.resolve("xlsx/dist/xlsx.full.min.js")],
   "exceljs (exceljs.min.js)": [require.resolve("exceljs/dist/exceljs.min.js")],
 };

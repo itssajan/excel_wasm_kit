@@ -73,6 +73,7 @@
   .pill { font: 500 12px var(--mono); padding: 3px 8px; border: 1px solid var(--grid-strong); border-radius: 999px; color: var(--muted); }
   .iconbtn { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--grid); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 11px; font-family: var(--mono); }
   .iconbtn:hover { color: var(--text); border-color: var(--grid-strong); }
+  #theme, .menubtn { font-size: 18px; font-family: inherit; }
 
   /* ---------- buttons ---------- */
   .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid transparent; cursor: pointer; }
@@ -384,3 +385,5 @@ pre.astro-code { margin: 0; padding: 20px 22px; font-size: 13.5px; line-height: 
 .runcard .bar { grid-template-columns: 200px 1fr 140px; }
 @media (max-width: 760px) { .runcard .bar { grid-template-columns: 1fr 120px; } }
 header.top .actions { display: flex; align-items: center; gap: 8px; }
+.pg-loading h1 { font-size: 24px; margin: 0 0 8px; color: var(--text); }
+.pg-loading p { max-width: 640px; margin: 0 0 8px; }

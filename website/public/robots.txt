@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kuramajs.github.io/excel/sitemap-index.xml

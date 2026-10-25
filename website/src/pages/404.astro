@@ -1,0 +1,14 @@
+---
+import Base from "../layouts/Base.astro";
+import { url } from "../data/site";
+---
+
+<Base title="Page not found · @kuramajs/excel" noindex>
+  <div class="wrap" style="padding: 96px 24px; text-align: center">
+    <img src={url("/brand/kurama.svg")} alt="" width="120" height="120" />
+    <h1 style="font-size: 40px; margin: 16px 0 8px">Kurama couldn’t find that page</h1>
+    <p style="color: var(--muted); margin: 0 0 24px">It may have moved. Try the home page or the docs.</p>
+    <a class="btn primary" href={url("/")}>Back home</a>
+    <a class="btn ghost" href={url("/docs")}>Read the docs</a>
+  </div>
+</Base>

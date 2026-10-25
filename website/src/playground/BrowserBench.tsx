@@ -120,7 +120,7 @@ export default function BrowserBench() {
       {results.length > 0 && (
         <div className="bars results" aria-live="polite">
           {results.map((r) => (
-            <div key={r.lib} className={`bar ${r.lib.startsWith("excel-kit") ? "us" : ""}`}>
+            <div key={r.lib} className={`bar ${r.lib.startsWith("kurama") ? "us" : ""}`}>
               <span className="lbl">{r.lib}</span>
               {r.error ? (
                 <span className="err-text">{r.error}</span>

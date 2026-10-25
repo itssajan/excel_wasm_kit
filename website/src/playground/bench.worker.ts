@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // Times parse + reading every row of one sheet per library (median of N runs).
-import init, { Workbook } from "@milojs/excel-kit";
+import init, { Workbook } from "@kuramajs/excel";
 import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
 import type { BenchLib, BenchRequest, BenchResponse } from "./protocol";
@@ -8,7 +8,7 @@ import type { BenchLib, BenchRequest, BenchResponse } from "./protocol";
 const post = (msg: BenchResponse) => self.postMessage(msg);
 
 const cases: Record<BenchLib, (buf: Uint8Array, sheet: string) => number | Promise<number>> = {
-  "excel-kit rows()": (buf, name) => {
+  "kurama rows()": (buf, name) => {
     const wb = Workbook.open(buf);
     const sheet = wb.sheet(name);
     const n = sheet.rows().length;
@@ -16,7 +16,7 @@ const cases: Record<BenchLib, (buf: Uint8Array, sheet: string) => number | Promi
     wb.free();
     return n;
   },
-  "excel-kit forEachRow()": (buf, name) => {
+  "kurama forEachRow()": (buf, name) => {
     const wb = Workbook.open(buf);
     let n = 0;
     wb.forEachRow(name, () => {

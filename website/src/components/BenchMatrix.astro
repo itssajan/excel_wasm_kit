@@ -33,7 +33,7 @@ const cell = (size: (typeof SIZES)[number], lib: string, m: (typeof metrics)[num
     <tbody>
       {
         libs.map((lib) => (
-          <tr class:list={{ us: lib.startsWith("excel-kit") }}>
+          <tr class:list={{ us: lib.startsWith("kurama") }}>
             <th class="lib" scope="row">{lib}</th>
             {metrics.map((m) =>
               SIZES.map((s) => {

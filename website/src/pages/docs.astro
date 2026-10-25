@@ -6,7 +6,10 @@ import { Content, getHeadings } from "../../../README.md";
 const sections = getHeadings().filter((h) => h.depth === 2);
 ---
 
-<Base title="Docs · excel-kit" description="Install, API, cell types, errors and limitations of @milojs/excel-kit.">
+<Base
+  title="@kuramajs/excel docs: install, API, cell types and errors"
+  description="Read xlsx, xls, xlsb and ods in JavaScript with @kuramajs/excel: install, quick start, streaming, progress, API, cell types and error codes."
+>
   <div class="wrap docs">
     <aside class="toc" aria-label="On this page">
       <div class="t">On this page</div>
@@ -20,15 +23,13 @@ const sections = getHeadings().filter((h) => h.depth === 2);
       }
     </aside>
     <article class="doc">
+      <h1 class="sr-only">@kuramajs/excel documentation</h1>
       <Content />
     </article>
   </div>
 </Base>
 
 <style is:global>
-  .doc > h1:first-child {
-    display: none;
-  }
   .doc h2 {
     scroll-margin-top: 80px;
   }

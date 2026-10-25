@@ -7,7 +7,10 @@ import { BUNDLE } from "../data/bench";
 import { GITHUB } from "../data/site";
 ---
 
-<Base title="Benchmarks · excel-kit" description="excel-kit vs SheetJS vs exceljs: time, peak memory and bundle size. Run it in your browser with your own file.">
+<Base
+  title="@kuramajs/excel benchmarks: speed and memory vs SheetJS and exceljs"
+  description="Time, peak memory and bundle size when reading 1M-row Excel files with @kuramajs/excel, SheetJS and exceljs. Reproduce it, or run it on your own file."
+>
   <div class="pagehead">
     <div class="wrap">
       <div class="eyebrow">Benchmarks</div>
@@ -32,7 +35,7 @@ import { GITHUB } from "../data/site";
         </tbody>
       </table>
       <p>
-        Honest note: excel-kit is the largest download gzipped. Most of it is codepage tables for legacy <code>.xls</code> files.
+        Honest note: @kuramajs/excel is the largest download gzipped. Most of it is codepage tables for legacy <code>.xls</code> files.
         Load it lazily, or in a worker, so it never blocks your first paint.
       </p>
     </div>

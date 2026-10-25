@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<title>Kurama K</title>
+<defs>
+  <linearGradient id="fireV" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#D62B1F"/><stop offset=".55" stop-color="#FF6A1A"/><stop offset="1" stop-color="#FFA23A"/></linearGradient>
+  <linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="-62"><stop offset="0" stop-color="#C8231B"/><stop offset=".55" stop-color="#FF6A1A"/><stop offset="1" stop-color="#FFB347"/></linearGradient></defs>
+
+  <rect x="26" y="16" width="22" height="96" rx="7" fill="url(#fireV)"/>
+  <path d="M46 60 L88 16 Q98 10 100 22 L102 50 L64 82 L46 82 Z" fill="#FF6A1A"/>
+  <path d="M88 30 L95 26 L96 46 L80 54 Z" fill="#C8231B"/>
+  <path d="M46 78 L60 70 C78 80 96 94 108 114 C94 112 78 104 64 96 L46 88 Z" fill="#E8401C"/>
+  <path d="M108 114 C102 104 96 99 88 96 C92 103 98 109 108 114Z" fill="#FFE6C7"/>
+</svg>

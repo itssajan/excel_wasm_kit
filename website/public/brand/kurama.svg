@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+<title>Kurama, the nine-tailed fox</title>
+<defs>
+  <linearGradient id="fireV" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#D62B1F"/><stop offset=".55" stop-color="#FF6A1A"/><stop offset="1" stop-color="#FFA23A"/></linearGradient>
+  <linearGradient id="tail" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="-62"><stop offset="0" stop-color="#C8231B"/><stop offset=".55" stop-color="#FF6A1A"/><stop offset="1" stop-color="#FFB347"/></linearGradient></defs>
+<g transform="translate(64 88)">
+  <g transform="rotate(-74)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="rotate(-52)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="rotate(-30)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="rotate(-10)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g>
+  <g transform="scale(-1 1) rotate(-74)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="scale(-1 1) rotate(-52)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="scale(-1 1) rotate(-30)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g><g transform="scale(-1 1) rotate(-10)"><path d="M0 0 C-20 -8 -30 -36 -16 -62 C-10 -46 4 -30 14 -14 C10 -6 6 -2 0 0Z" fill="url(#tail)"/><path d="M-16 -62 C-20 -54 -21 -48 -19 -43 Q-12 -42 -8 -46 C-9 -52 -12 -57 -16 -62Z" fill="#FFE6C7"/></g>
+  <path d="M0 0 C-22 -16 -20 -46 0 -64 C20 -46 22 -16 0 0Z" fill="url(#tail)"/><path d="M0 -64 C-7 -58 -10 -52 -9 -47 Q0 -43 9 -47 C10 -52 7 -58 0 -64Z" fill="#FFE6C7"/></g>
+  <g transform="translate(19 36) scale(.7)">
+  <path d="M34 56 C28 40 28 24 34 14 C46 20 56 32 60 44 Z M94 56 C100 40 100 24 94 14 C82 20 72 32 68 44 Z" fill="#FF6A1A"/>
+  <path d="M37 48 C34 38 34 28 37 22 C44 27 50 34 53 42 Z M91 48 C94 38 94 28 91 22 C84 27 78 34 75 42 Z" fill="#C8231B"/>
+  <path d="M64 40 C92 40 108 58 106 78 C104 98 86 110 64 110 C42 110 24 98 22 78 C20 58 36 40 64 40Z" fill="#FF7A1A"/>
+  <path d="M28 86 C38 92 50 94 64 104 C78 94 90 92 100 86 C98 100 84 110 64 110 C44 110 30 100 28 86Z" fill="#FFF3E6"/>
+  <path d="M38 80 L46 84 M90 80 L82 84" stroke="#C8231B" stroke-width="2.6" stroke-linecap="round"/>
+  <ellipse cx="48" cy="72" rx="6.5" ry="8.5" fill="#2A1410"/><ellipse cx="80" cy="72" rx="6.5" ry="8.5" fill="#2A1410"/>
+  <circle cx="50.5" cy="68.5" r="2.6" fill="#fff"/><circle cx="82.5" cy="68.5" r="2.6" fill="#fff"/>
+  <ellipse cx="64" cy="90" rx="4.2" ry="3" fill="#2A1410"/>
+  <path d="M57.5 95 Q61 98.5 64 95 Q67 98.5 70.5 95" stroke="#2A1410" stroke-width="2" fill="none" stroke-linecap="round"/></g>
+</svg>

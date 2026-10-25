@@ -3,12 +3,12 @@ import Base from "../layouts/Base.astro";
 import BenchChart from "../components/BenchChart.astro";
 import CodeTabs from "../components/CodeTabs.astro";
 import InstallBar from "../components/InstallBar.astro";
-import { url } from "../data/site";
+import { GITHUB, NPM, VERSION, url } from "../data/site";
 
 const quickStart = [
   {
     name: "basic.js",
-    code: `import init, { Workbook } from "@milojs/excel-kit";
+    code: `import init, { Workbook } from "@kuramajs/excel";
 
 await init();
 const wb = Workbook.open(await file.arrayBuffer());
@@ -46,7 +46,23 @@ const features = [
 ];
 ---
 
-<Base title="excel-kit: read huge Excel files with 10× less memory">
+<Base
+  title="@kuramajs/excel: fast Excel reader for JavaScript & WebAssembly"
+  description="Read xlsx, xlsm, xlsb, xls and ods files in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
+  jsonLd={{
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    name: "@kuramajs/excel",
+    description: "Fast, low-memory Excel reader for browsers and Node.js, in Rust + WebAssembly.",
+    codeRepository: GITHUB,
+    programmingLanguage: ["Rust", "TypeScript", "JavaScript"],
+    runtimePlatform: ["Browser", "Node.js", "WebAssembly"],
+    license: "https://opensource.org/licenses/MIT",
+    version: VERSION,
+    url: NPM,
+    keywords: "excel, xlsx, xls, xlsb, ods, spreadsheet, parser, reader, webassembly, rust, streaming",
+  }}
+>
   <section class="hero gridbg">
     <div class="colheads" aria-hidden="true">
       <span></span>{["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"].map((c) => <span class:list={{ sel: c === "B" }}>{c}</span>)}
@@ -58,7 +74,7 @@ const features = [
           <div class="eyebrow">Rust + WebAssembly · read-only</div>
           <h1>Read huge Excel files with <em>10× less memory</em>.</h1>
           <p class="lede">
-            A million rows in 282 MB, where SheetJS needs 2.9 GB. And 3.5× faster. Typed cells, streaming rows and progress
+            Read a million-row spreadsheet in about 3 seconds, using under 300 MB. Typed cells, streaming rows and progress
             callbacks, in the browser or Node.
           </p>
           <div class="ctas">

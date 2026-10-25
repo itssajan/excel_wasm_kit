@@ -1,4 +1,4 @@
-import type { Cell, SheetInfo } from "@milojs/excel-kit";
+import type { Cell, SheetInfo } from "@kuramajs/excel";
 
 export type { Cell, SheetInfo };
 
@@ -19,8 +19,8 @@ export type ViewerResponse =
   | { type: "rows"; start: number; end: number; rows: Cell[][]; ms: number }
   | { type: "error"; code?: string; message: string };
 
-export type BenchLib = "excel-kit rows()" | "excel-kit forEachRow()" | "sheetjs" | "exceljs";
-export const BENCH_LIBS: BenchLib[] = ["excel-kit rows()", "excel-kit forEachRow()", "sheetjs", "exceljs"];
+export type BenchLib = "kurama rows()" | "kurama forEachRow()" | "sheetjs" | "exceljs";
+export const BENCH_LIBS: BenchLib[] = ["kurama rows()", "kurama forEachRow()", "sheetjs", "exceljs"];
 
 export type BenchRequest =
   | { type: "list"; file: File }
