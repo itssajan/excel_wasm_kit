@@ -384,3 +384,5 @@ pre.astro-code { margin: 0; padding: 20px 22px; font-size: 13.5px; line-height: 
 .runcard .bar { grid-template-columns: 200px 1fr 140px; }
 @media (max-width: 760px) { .runcard .bar { grid-template-columns: 1fr 120px; } }
 header.top .actions { display: flex; align-items: center; gap: 8px; }
+.pg-loading h1 { font-size: 24px; margin: 0 0 8px; color: var(--text); }
+.pg-loading p { max-width: 640px; margin: 0 0 8px; }

@@ -3,8 +3,19 @@ import Base from "../layouts/Base.astro";
 import Playground from "../playground/Playground";
 ---
 
-<Base title="Playground · excel-kit" description="Open any Excel file in your browser with excel-kit and see the code and timings behind every step." app>
+<Base
+  title="Excel file viewer and playground · excel-kit"
+  description="Open any xlsx, xls, xlsb or ods file in your browser and see the excel-kit code, timings and memory behind each step. It runs locally; nothing is uploaded."
+  app
+>
   <Playground client:only="react">
-    <div class="pg-loading" slot="fallback">Loading the playground…</div>
+    <div class="pg-loading" slot="fallback">
+      <h1>Excel file viewer and playground</h1>
+      <p>
+        Open any xlsx, xlsm, xlsb, xls or ods file and explore it with excel-kit, a Rust + WebAssembly reader. See the code, timings and
+        memory behind each step. Everything runs in a Web Worker on your machine; nothing is uploaded.
+      </p>
+      <noscript><p>The playground needs JavaScript and WebAssembly.</p></noscript>
+    </div>
   </Playground>
 </Base>

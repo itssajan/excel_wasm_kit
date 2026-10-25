@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://itssajan.github.io/excel_wasm_kit/sitemap-index.xml

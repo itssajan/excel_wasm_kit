@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@astrojs/react": "^5.0.7",
+    "@astrojs/sitemap": "^3.7.4",
     "@milojs/excel-kit": "file:..",
     "@tanstack/react-virtual": "^3.14.22",
     "astro": "^6.4.8",
