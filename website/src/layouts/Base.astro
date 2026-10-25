@@ -90,14 +90,15 @@ const current = Astro.url.pathname.replace(import.meta.env.BASE_URL, "").replace
       gaId && (
         <>
           <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
-          <script is:inline define:vars={{ gaId }}>
-            window.dataLayer = window.dataLayer || [];
-            function gtag() {
-              dataLayer.push(arguments);
-            }
-            gtag("js", new Date());
-            gtag("config", gaId);
-          </script>
+          {/* Google's exact snippet with the ID inline: define:vars wraps it in a function, which hides
+              gtag from window and stops Search Console verifying ownership via Analytics */}
+          <script
+            is:inline
+            set:html={`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${gaId}');`}
+          />
         </>
       )
     }
