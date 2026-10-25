@@ -1,6 +1,6 @@
 {
   "name": "@kuramajs/excel",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Fast, low-memory Excel reader (xlsx, xlsm, xlsb, xls, ods) for browsers and Node, in WebAssembly",
   "keywords": [
     "excel",
