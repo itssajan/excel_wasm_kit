@@ -8,9 +8,11 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Must match the "Environment name" in the package's Trusted Publisher settings on npmjs.com
+    environment: npm
     permissions:
       contents: read
-      id-token: write # npm provenance
+      id-token: write # trusted publishing (OIDC); also generates provenance
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -21,7 +23,7 @@ jobs:
           tool: wasm-pack
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24 # npm >= 11.5.1 is required for trusted publishing
           registry-url: https://registry.npmjs.org/
       - name: Check tag matches package versions
         run: |
@@ -32,6 +34,5 @@ jobs:
           test "$tag" = "$npm_version" && test "$tag" = "$cargo_version"
       - run: npm run build
       - run: npm test
-      - run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # No token: npm exchanges the job's OIDC identity for a short-lived publish credential
+      - run: npm publish --access public
