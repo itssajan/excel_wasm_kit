@@ -11,7 +11,7 @@ export const SIZES: Size[] = [
     rows: "22k rows",
     data: [
       { lib: "excel-kit", variant: "forEachRow()", s: 0.1, mb: 96, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 0.1, mb: 93, ours: true },
+      { lib: "excel-kit", variant: "iterRows()", s: 0.1, mb: 89, ours: true },
       { lib: "excel-kit", variant: "rows()", s: 0.11, mb: 130, ours: true },
       { lib: "exceljs", variant: "stream", s: 0.28, mb: 146 },
       { lib: "SheetJS", variant: "0.20.3", s: 0.34, mb: 166 },
@@ -25,7 +25,7 @@ export const SIZES: Size[] = [
     rows: "220k rows",
     data: [
       { lib: "excel-kit", variant: "forEachRow()", s: 0.73, mb: 127, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 0.78, mb: 143, ours: true },
+      { lib: "excel-kit", variant: "iterRows()", s: 0.72, mb: 126, ours: true },
       { lib: "excel-kit", variant: "rows()", s: 0.76, mb: 379, ours: true },
       { lib: "exceljs", variant: "stream", s: 1.71, mb: 327 },
       { lib: "SheetJS", variant: "0.20.3", s: 2.55, mb: 675 },
@@ -39,7 +39,7 @@ export const SIZES: Size[] = [
     rows: "1M rows",
     data: [
       { lib: "excel-kit", variant: "forEachRow()", s: 3.41, mb: 282, ours: true },
-      { lib: "excel-kit", variant: "iterRows()", s: 3.88, mb: 341, ours: true },
+      { lib: "excel-kit", variant: "iterRows()", s: 3.37, mb: 276, ours: true },
       { lib: "excel-kit", variant: "rows()", s: 3.55, mb: 1326, ours: true },
       { lib: "exceljs", variant: "stream", s: 7.51, mb: 730 },
       { lib: "SheetJS", variant: "0.20.3", s: 12.29, mb: 2913 },

@@ -135,7 +135,7 @@ Parse a sheet and read every row, on Node 22 (Apple Silicon). Median of 3 runs. 
 | 47.5 MB xlsx, 1M rows | Time | Peak memory |
 |---|---:|---:|
 | **excel-kit** `forEachRow()` | **3.4 s** | **282 MB** |
-| **excel-kit** `iterRows()` | 3.9 s | 341 MB |
+| **excel-kit** `iterRows()` | 3.4 s | 276 MB |
 | **excel-kit** `rows()` | 3.6 s | 1.3 GB |
 | exceljs (streaming reader) | 7.5 s | 730 MB |
 | SheetJS 0.20.3 | 12.3 s | 2.9 GB |
@@ -160,7 +160,8 @@ Full results and how to reproduce them: [`bench/`](https://github.com/itssajan/e
 - Read-only. No writing, formulas, styles, merged-cell info or images.
 - `sheet()` and `rows()` hold the whole sheet in memory. Use `iterRows()` or `forEachRow()` for huge sheets.
 - WebAssembly memory is capped at 4 GB per instance and never shrinks. In practice, about 500 MB xlsx files are the ceiling in a browser tab.
-- Each `iterRows()` call on xlsx re-reads the workbook's shared strings, so `forEachRow()` is faster on huge files.
+- `iterRows()` borrows the parsed workbook until it finishes or you `break` out of it. Other calls made in the meantime still work, but they parse the file again, which is slow on big files. Finish or break out of one iterator before using the workbook again.
+- Streamed rows (`iterRows()`, `forEachRow()`) are padded to the widest row seen so far, starting from the size the sheet declares. If a file declares its size wrongly, the first rows can be narrower than in `sheet().rows()`.
 - Encrypted workbooks are detected (`PASSWORD_PROTECTED`) but cannot be opened.
 
 ## Development

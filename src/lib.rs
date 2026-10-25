@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::io::Cursor;
 use std::rc::Rc;
@@ -208,7 +209,8 @@ struct RowAssembler {
 
 impl RowAssembler {
     fn new(reader: &CellReader) -> Self {
-        // ponytail: row width comes from the sheet's <dimension> tag; matches Sheet.rows() unless the tag is wrong
+        // ponytail: row width starts at the sheet's <dimension> tag and only grows; matches Sheet.rows() unless the tag
+        // is too small, in which case rows before the widest one come out narrower (an exact width needs a second pass)
         RowAssembler {
             width: reader.dimensions().end.1 as usize + 1,
             next_index: 0,
@@ -220,7 +222,9 @@ impl RowAssembler {
 
     fn take_row(&mut self) -> Vec<Data> {
         let mut row = std::mem::take(&mut self.buf);
-        row.resize(row.len().max(self.width), Data::Empty);
+        // a wrong or missing <dimension> tag self-corrects: later rows and blank rows match the widest row so far
+        self.width = self.width.max(row.len());
+        row.resize(self.width, Data::Empty);
         self.next_index += 1;
         row
     }
@@ -266,8 +270,11 @@ struct XlsxStream {
     reader: CellReader<'this>,
 }
 
+/// Where a finished iterator hands the parsed `Xlsx` back to the `Workbook` it was borrowed from.
+type Mailbox = Rc<RefCell<Option<calamine::Xlsx<Bytes>>>>;
+
 enum RowSource {
-    Xlsx(Box<XlsxStream>, RowAssembler),
+    Xlsx(Box<XlsxStream>, RowAssembler, Mailbox),
     Loaded(Range<Data>, usize),
 }
 
@@ -277,13 +284,22 @@ pub struct RowIter {
     source: RowSource,
 }
 
+impl Drop for RowIter {
+    fn drop(&mut self) {
+        let done = std::mem::replace(&mut self.source, RowSource::Loaded(Range::empty(), 0));
+        if let RowSource::Xlsx(stream, _, mailbox) = done {
+            *mailbox.borrow_mut() = Some((*stream).into_heads().xlsx);
+        }
+    }
+}
+
 #[wasm_bindgen]
 impl RowIter {
     /// Next row, or `undefined` when finished.
     #[wasm_bindgen(js_name = next, unchecked_return_type = "Cell[] | undefined")]
     pub fn next_row(&mut self) -> Result<JsValue, JsValue> {
         let row = match &mut self.source {
-            RowSource::Xlsx(stream, asm) => stream
+            RowSource::Xlsx(stream, asm, _) => stream
                 .with_reader_mut(|reader| asm.next(reader))?
                 .map(|r| row_value(&r)),
             RowSource::Loaded(range, i) => {
@@ -335,10 +351,45 @@ fn xlsx_range_with_progress(
     Ok(Range::from_sparse(cells))
 }
 
+/// Worksheet names and visibility, read once at open so `sheets()` never needs the parsed workbook.
+fn sheet_list(book: &Sheets<Bytes>) -> Vec<(String, &'static str)> {
+    book.sheets_metadata()
+        .iter()
+        .filter(|s| s.typ == SheetType::WorkSheet)
+        .map(|s| {
+            let visibility = match s.visible {
+                SheetVisible::Visible => "Visible",
+                SheetVisible::Hidden => "Hidden",
+                SheetVisible::VeryHidden => "VeryHidden",
+            };
+            (s.name.clone(), visibility)
+        })
+        .collect()
+}
+
 #[wasm_bindgen]
 pub struct Workbook {
-    book: Sheets<Bytes>,
+    /// `None` while an `iterRows()` iterator has borrowed the parsed xlsx
+    book: Option<Sheets<Bytes>>,
+    /// Where that iterator returns the xlsx when it finishes or is freed
+    returned: Mailbox,
+    sheet_list: Vec<(String, &'static str)>,
     bytes: Rc<[u8]>,
+}
+
+impl Workbook {
+    /// The parsed workbook. If an iterator still holds it, take it back when it has been returned,
+    /// otherwise parse the bytes again (only when iterators overlap with other calls).
+    fn book(&mut self) -> Result<&mut Sheets<Bytes>, JsValue> {
+        let returned = self.returned.borrow_mut().take();
+        if self.book.is_none() {
+            self.book = Some(match returned {
+                Some(xlsx) => Sheets::Xlsx(xlsx),
+                None => open_any(&self.bytes)?,
+            });
+        }
+        Ok(self.book.as_mut().unwrap_throw())
+    }
 }
 
 #[wasm_bindgen]
@@ -351,8 +402,11 @@ impl Workbook {
             return Err(error("INVALID_INPUT", "Expected Uint8Array or ArrayBuffer"));
         }
         let bytes: Rc<[u8]> = Uint8Array::new(&data).to_vec().into();
+        let book = open_any(&bytes)?;
         Ok(Workbook {
-            book: open_any(&bytes)?,
+            sheet_list: sheet_list(&book),
+            book: Some(book),
+            returned: Mailbox::default(),
             bytes,
         })
     }
@@ -360,19 +414,12 @@ impl Workbook {
     /// Worksheets in workbook order. Chart sheets are skipped.
     #[wasm_bindgen(unchecked_return_type = "SheetInfo[]")]
     pub fn sheets(&self) -> Array {
-        self.book
-            .sheets_metadata()
+        self.sheet_list
             .iter()
-            .filter(|s| s.typ == SheetType::WorkSheet)
-            .map(|s| {
-                let visibility = match s.visible {
-                    SheetVisible::Visible => "Visible",
-                    SheetVisible::Hidden => "Hidden",
-                    SheetVisible::VeryHidden => "VeryHidden",
-                };
+            .map(|(name, visibility)| {
                 let obj = Object::new();
-                Reflect::set(&obj, &"name".into(), &s.name.as_str().into()).unwrap_throw();
-                Reflect::set(&obj, &"visibility".into(), &visibility.into()).unwrap_throw();
+                Reflect::set(&obj, &"name".into(), &name.as_str().into()).unwrap_throw();
+                Reflect::set(&obj, &"visibility".into(), &(*visibility).into()).unwrap_throw();
                 JsValue::from(obj)
             })
             .collect()
@@ -392,9 +439,9 @@ impl Workbook {
                 .ok(),
             None => None,
         };
-        let range = match (&mut self.book, on_progress) {
+        let range = match (self.book()?, on_progress) {
             (Sheets::Xlsx(xlsx), Some(cb)) => xlsx_range_with_progress(xlsx, name, &cb)?,
-            _ => self.book.worksheet_range(name).map_err(calamine_error)?,
+            (book, _) => book.worksheet_range(name).map_err(calamine_error)?,
         };
         Ok(Sheet {
             range: from_a1(range),
@@ -402,20 +449,32 @@ impl Workbook {
     }
 
     /// Lazily iterate rows: `for (const row of wb.iterRows("Sheet1"))`. Breaking early frees memory.
-    /// Low-memory for xlsx/xlsm (reopens the workbook, re-reading shared strings);
-    /// other formats load the sheet first.
+    /// Low-memory for xlsx/xlsm; other formats load the sheet first.
+    /// The iterator borrows the parsed workbook until it finishes or is freed. Other calls made in
+    /// the meantime still work, but parse the file again, so they are slower on big files.
     #[wasm_bindgen(js_name = iterRows, unchecked_return_type = "Generator<Cell[], void, undefined>")]
     pub fn iter_rows(&mut self, name: &str) -> Result<JsValue, JsValue> {
-        let source = if matches!(self.book, Sheets::Xlsx(_)) {
-            let xlsx: calamine::Xlsx<Bytes> =
-                calamine::open_workbook_from_rs(Cursor::new(self.bytes.clone()))
-                    .map_err(|e: calamine::XlsxError| calamine_error(e.into()))?;
-            let stream = XlsxStream::try_new(xlsx, |x| x.worksheet_cells_reader(name))
-                .map_err(|e| calamine_error(e.into()))?;
-            let asm = stream.with_reader(RowAssembler::new);
-            RowSource::Xlsx(Box::new(stream), asm)
+        let source = if matches!(self.book()?, Sheets::Xlsx(_)) {
+            // ponytail: `book()` just made sure this is the xlsx, so the fallback never runs. It is kept on
+            // purpose: a second caller stops the compiler inlining the xlsx open into `open_any`, which
+            // otherwise makes `Workbook::open` touch ~70 MB more memory on a 50 MB file (measured).
+            let xlsx = match self.book.take() {
+                Some(Sheets::Xlsx(xlsx)) => xlsx,
+                _ => calamine::open_workbook_from_rs(Cursor::new(self.bytes.clone()))
+                    .map_err(|e: calamine::XlsxError| calamine_error(e.into()))?,
+            };
+            match XlsxStream::try_new_or_recover(xlsx, |x| x.worksheet_cells_reader(name)) {
+                Ok(stream) => {
+                    let asm = stream.with_reader(RowAssembler::new);
+                    RowSource::Xlsx(Box::new(stream), asm, self.returned.clone())
+                }
+                Err((e, heads)) => {
+                    self.book = Some(Sheets::Xlsx(heads.xlsx));
+                    return Err(calamine_error(e.into()));
+                }
+            }
         } else {
-            let range = self.book.worksheet_range(name).map_err(calamine_error)?;
+            let range = self.book()?.worksheet_range(name).map_err(calamine_error)?;
             RowSource::Loaded(from_a1(range), 0)
         };
         Ok(rows_generator(RowIter { source }.into()))
@@ -430,14 +489,17 @@ impl Workbook {
         #[wasm_bindgen(unchecked_param_type = "(row: Cell[], index: number) => boolean | void")]
         callback: Function,
     ) -> Result<(), JsValue> {
-        let Sheets::Xlsx(xlsx) = &mut self.book else {
-            let range = from_a1(self.book.worksheet_range(name).map_err(calamine_error)?);
-            for (i, row) in range.rows().enumerate() {
-                if !emit(&callback, &row_value(row), i as u32)? {
-                    break;
+        let xlsx = match self.book()? {
+            Sheets::Xlsx(xlsx) => xlsx,
+            book => {
+                let range = from_a1(book.worksheet_range(name).map_err(calamine_error)?);
+                for (i, row) in range.rows().enumerate() {
+                    if !emit(&callback, &row_value(row), i as u32)? {
+                        break;
+                    }
                 }
+                return Ok(());
             }
-            return Ok(());
         };
 
         let mut reader = xlsx
