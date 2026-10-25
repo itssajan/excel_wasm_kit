@@ -63,10 +63,7 @@
   header.top { position: sticky; top: 0; z-index: 50; background: color-mix(in oklab, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--grid); }
   header.top .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
   .logo { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-family: var(--mono); font-weight: 700; font-size: 15px; }
-  .logo .mark { display: grid; grid-template-columns: repeat(3, 7px); gap: 2px; padding: 4px; border-radius: 6px; background: var(--green); }
-  .logo .mark i { width: 7px; height: 7px; background: rgba(255,255,255,.85); border-radius: 1px; }
-  .logo .mark i:nth-child(1), .logo .mark i:nth-child(5), .logo .mark i:nth-child(9) { background: #fff; }
-  .logo .mark i:nth-child(2), .logo .mark i:nth-child(6) { background: rgba(255,255,255,.45); }
+  .logo .mark { width: 34px; height: 34px; display: block; }
   .logo .scope { color: var(--muted); font-weight: 500; }
   nav.main { display: flex; gap: 4px; }
   nav.main a { padding: 6px 12px; border-radius: 6px; color: var(--muted); font-weight: 500; font-size: 14px; }

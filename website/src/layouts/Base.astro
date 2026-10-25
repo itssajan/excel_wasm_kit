@@ -25,6 +25,11 @@ const current = Astro.url.pathname.replace(import.meta.env.BASE_URL, "").replace
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={new URL(url("/og.png"), Astro.site)} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href={url("/favicon.svg")} type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,7 +48,7 @@ const current = Astro.url.pathname.replace(import.meta.env.BASE_URL, "").replace
     <header class="top">
       <div class="wrap">
         <a href={url("/")} class="logo" aria-label="excel-kit home">
-          <span class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <img class="mark" src={url("/brand/milo.svg")} alt="" width="34" height="34" />
           <span><span class="scope">@milojs/</span>excel-kit</span>
         </a>
         <nav class="main" id="nav" aria-label="Main">
