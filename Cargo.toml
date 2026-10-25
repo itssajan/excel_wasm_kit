@@ -1,9 +1,11 @@
 [package]
 name = "excel-kit"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
+description = "Fast, low-memory Excel reader for browsers and Node, in WebAssembly"
+license = "MIT"
+repository = "https://github.com/itssajan/excel_wasm_kit"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 crate-type = ["cdylib"]
 

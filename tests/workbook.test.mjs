@@ -2,8 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+// Import by package name so tests go through the package.json "exports" map
+import init, { Workbook } from "@milojs/excel-kit";
 
-const { Workbook } = createRequire(import.meta.url)("../pkg/nodejs/nodejs_index.js");
+await init();
 const bytes = readFileSync(new URL("./fixtures/basic.xlsx", import.meta.url));
 
 test("lists worksheets with visibility", () => {
@@ -165,4 +167,10 @@ test("rowsSlice behaves like Array.slice, clamped", () => {
   assert.deepEqual(sheet.rowsSlice(2, 99), rows.slice(2));
   assert.deepEqual(sheet.rowsSlice(3, 1), []);
   assert.deepEqual(sheet.rowsSlice(50, 60), []);
+});
+
+test("CommonJS require exposes the same API", () => {
+  const cjs = createRequire(import.meta.url)("@milojs/excel-kit");
+  const wb = cjs.Workbook.open(bytes);
+  assert.equal(wb.sheets().length, 4);
 });
