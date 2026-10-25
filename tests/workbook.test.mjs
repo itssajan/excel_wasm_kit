@@ -143,3 +143,26 @@ for (const file of ["pass_protected.xlsx", "pass_protected.xlsb", "pass_protecte
     assert.throws(() => Workbook.open(fixture(file)), (err) => err.code === "PASSWORD_PROTECTED");
   });
 }
+
+test("sheet onProgress gives same rows and reports progress", () => {
+  const wb = Workbook.open(bytes);
+  for (const name of ["Data", "People", "Offset"]) {
+    const calls = [];
+    const sheet = wb.sheet(name, { onProgress: (read, total) => calls.push([read, total]) });
+    assert.deepEqual(sheet.rows(), wb.sheet(name).rows(), name);
+    assert.ok(calls.length >= 2, name);
+    const [lastRead, lastTotal] = calls.at(-1);
+    assert.equal(lastRead, lastTotal, name);
+  }
+  assert.throws(() => wb.sheet("Missing", { onProgress() {} }), (err) => err.code === "SHEET_NOT_FOUND");
+});
+
+test("rowsSlice behaves like Array.slice, clamped", () => {
+  const wb = Workbook.open(bytes);
+  const sheet = wb.sheet("People");
+  const rows = sheet.rows();
+  assert.deepEqual(sheet.rowsSlice(1, 3), rows.slice(1, 3));
+  assert.deepEqual(sheet.rowsSlice(2, 99), rows.slice(2));
+  assert.deepEqual(sheet.rowsSlice(3, 1), []);
+  assert.deepEqual(sheet.rowsSlice(50, 60), []);
+});

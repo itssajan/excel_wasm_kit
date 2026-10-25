@@ -4,23 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>excel-kit demo</title>
-    <style>
-      body { font: 14px system-ui, sans-serif; margin: 1rem; }
-      nav button[aria-pressed="true"] { font-weight: bold; }
-      table { border-collapse: collapse; margin-top: 1rem; }
-      td, th { border: 1px solid #ddd; padding: 2px 6px; white-space: nowrap; }
-      th { background: #f4f4f4; }
-      #status { color: #555; margin: 0.5rem 0; }
-    </style>
   </head>
   <body>
-    <h1>excel-kit</h1>
-    <label>Open a workbook (xlsx, xlsm, xlsb, xls, ods): <input id="file" type="file" accept=".xlsx,.xlsm,.xlsb,.xls,.ods" /></label>
-    <button id="bench" disabled>Benchmark vs SheetJS &amp; exceljs</button>
-    <p id="status" role="status"></p>
-    <table id="results" hidden></table>
-    <nav id="tabs" aria-label="Sheets"></nav>
-    <table id="grid"></table>
-    <script type="module" src="./main.js"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

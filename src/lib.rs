@@ -12,6 +12,7 @@ export type Cell = string | number | boolean | Date | null | { error: string };
 export type Visibility = "Visible" | "Hidden" | "VeryHidden";
 export interface SheetInfo { name: string; visibility: Visibility }
 export interface ToObjectsOptions { header?: number }
+export interface SheetOptions { onProgress?: (rowsRead: number, totalRows: number) => void }
 export type ErrorCode = "INVALID_INPUT" | "INVALID_FILE" | "PASSWORD_PROTECTED" | "SHEET_NOT_FOUND" | "OUT_OF_BOUNDS";
 export interface ExcelKitError extends Error { code: ErrorCode }
 "#;
@@ -305,6 +306,35 @@ extern "C" {
     fn rows_generator(it: JsValue) -> JsValue;
 }
 
+const PROGRESS_EVERY: u32 = 10_000;
+
+/// Same result as calamine's xlsx `worksheet_range` (empty cells dropped, sparse -> dense),
+/// built from the streaming reader so we can report progress.
+fn xlsx_range_with_progress(
+    xlsx: &mut calamine::Xlsx<Bytes>,
+    name: &str,
+    on_progress: &Function,
+) -> Result<Range<Data>, JsValue> {
+    let mut reader = xlsx
+        .worksheet_cells_reader(name)
+        .map_err(|e| calamine_error(e.into()))?;
+    let total = JsValue::from(reader.dimensions().end.0 + 1);
+    let mut cells = Vec::new();
+    let mut next_report = 0;
+    while let Some(cell) = reader.next_cell().map_err(|e| calamine_error(e.into()))? {
+        let pos = cell.get_position();
+        if pos.0 >= next_report {
+            on_progress.call2(&JsValue::NULL, &pos.0.into(), &total)?;
+            next_report = pos.0 + PROGRESS_EVERY;
+        }
+        if !matches!(cell.get_value(), calamine::DataRef::Empty) {
+            cells.push(calamine::Cell::new(pos, cell.get_value().clone().into()));
+        }
+    }
+    on_progress.call2(&JsValue::NULL, &total, &total)?;
+    Ok(Range::from_sparse(cells))
+}
+
 #[wasm_bindgen]
 pub struct Workbook {
     book: Sheets<Bytes>,
@@ -349,8 +379,23 @@ impl Workbook {
     }
 
     /// Parse one worksheet. Parse once, then read rows from the returned Sheet.
-    pub fn sheet(&mut self, name: &str) -> Result<Sheet, JsValue> {
-        let range = self.book.worksheet_range(name).map_err(calamine_error)?;
+    /// `onProgress(rowsRead, totalRows)` fires every ~10k rows for xlsx/xlsm (totalRows from the
+    /// sheet's dimension tag); other formats parse in one step without progress.
+    pub fn sheet(
+        &mut self,
+        name: &str,
+        #[wasm_bindgen(unchecked_optional_param_type = "SheetOptions")] options: Option<Object>,
+    ) -> Result<Sheet, JsValue> {
+        let on_progress = match &options {
+            Some(o) => Reflect::get(o, &"onProgress".into())?
+                .dyn_into::<Function>()
+                .ok(),
+            None => None,
+        };
+        let range = match (&mut self.book, on_progress) {
+            (Sheets::Xlsx(xlsx), Some(cb)) => xlsx_range_with_progress(xlsx, name, &cb)?,
+            _ => self.book.worksheet_range(name).map_err(calamine_error)?,
+        };
         Ok(Sheet {
             range: from_a1(range),
         })
@@ -427,6 +472,17 @@ impl Sheet {
         self.range.width()
     }
 
+    /// Rows `start..end` (like `Array.prototype.slice`, clamped to the sheet).
+    #[wasm_bindgen(js_name = rowsSlice, unchecked_return_type = "Cell[][]")]
+    pub fn rows_slice(&self, start: usize, end: usize) -> Array {
+        self.range
+            .rows()
+            .skip(start)
+            .take(end.saturating_sub(start))
+            .map(|r| JsValue::from(row_value(r)))
+            .collect()
+    }
+
     #[wasm_bindgen(unchecked_return_type = "Cell[][]")]
     pub fn rows(&self) -> Array {
         self.range
@@ -448,7 +504,7 @@ impl Sheet {
     #[wasm_bindgen(js_name = toObjects, unchecked_return_type = "Record<string, Cell>[]")]
     pub fn to_objects(
         &self,
-        #[wasm_bindgen(unchecked_param_type = "ToObjectsOptions")] options: Option<Object>,
+        #[wasm_bindgen(unchecked_optional_param_type = "ToObjectsOptions")] options: Option<Object>,
     ) -> Result<Array, JsValue> {
         let header = match options {
             Some(o) => Reflect::get(&o, &"header".into())?.as_f64().unwrap_or(0.0) as usize,
