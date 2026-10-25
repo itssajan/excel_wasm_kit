@@ -3,3 +3,8 @@
 node_modules
 .vite
 pkg/*
+bench/fixtures
+.DS_Store
+design
+dist
+.astro

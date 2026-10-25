@@ -1,0 +1,115 @@
+---
+import { SIZES, formatMb, type Row } from "../data/bench";
+
+// One row per library, columns per file size, colored like Excel conditional formatting:
+// green = best in the column, red = worst (log scale, so 2× and 10× stay distinguishable).
+const libs = SIZES[0].data.map((r) => `${r.lib} ${r.variant}`);
+const metrics = [
+  { label: "Time", value: (r: Row) => r.s, format: (r: Row) => `${r.s.toFixed(2)} s` },
+  { label: "Peak memory", value: (r: Row) => r.mb, format: (r: Row) => formatMb(r.mb) },
+];
+const cell = (size: (typeof SIZES)[number], lib: string, m: (typeof metrics)[number]) => {
+  const values = size.data.map(m.value);
+  const best = Math.min(...values);
+  const worst = Math.max(...values);
+  const r = size.data.find((x) => `${x.lib} ${x.variant}` === lib)!;
+  const t = Math.log(m.value(r) / best) / Math.log(worst / best || 2);
+  return { text: m.format(r), ratio: m.value(r) / best, heat: Math.round(t * 100) };
+};
+---
+
+<div class="matrix-wrap">
+  <table class="matrix">
+    <caption class="sr-only">Benchmark results by file size: time and peak memory</caption>
+    <thead>
+      <tr>
+        <th rowspan="2" class="lib">Library</th>
+        {metrics.map((m) => <th colspan={SIZES.length} class="group">{m.label}</th>)}
+      </tr>
+      <tr>
+        {metrics.map(() => SIZES.map((s) => <th class="size">{s.file}<small>{s.rows}</small></th>))}
+      </tr>
+    </thead>
+    <tbody>
+      {
+        libs.map((lib) => (
+          <tr class:list={{ us: lib.startsWith("excel-kit") }}>
+            <th class="lib" scope="row">{lib}</th>
+            {metrics.map((m) =>
+              SIZES.map((s) => {
+                const c = cell(s, lib, m);
+                return (
+                  <td style={`--heat:${c.heat}%`}>
+                    {c.text}
+                    <small>{c.ratio < 1.05 ? "best" : `${c.ratio.toFixed(1)}×`}</small>
+                  </td>
+                );
+              }),
+            )}
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+  <p class="chartnote">Each cell is colored against the best result in its column: green is best, red is worst. Node 22, median of 3 runs.</p>
+</div>
+
+<style>
+  .matrix-wrap {
+    overflow-x: auto;
+  }
+  .matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+    background: var(--surface);
+    border: 1px solid var(--grid-strong);
+  }
+  th,
+  td {
+    border: 1px solid var(--grid);
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+  thead th {
+    background: var(--header-cell);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .group {
+    text-align: center;
+    border-bottom-color: var(--grid-strong);
+  }
+  .size {
+    text-align: right;
+    font: 500 12px var(--mono);
+  }
+  .size small,
+  td small {
+    display: block;
+    font: 500 11px var(--mono);
+    color: var(--faint);
+  }
+  th.lib {
+    text-align: left;
+    font: 500 13px var(--mono);
+    background: var(--header-cell);
+  }
+  tr.us th.lib {
+    color: var(--green);
+    font-weight: 700;
+  }
+  td {
+    text-align: right;
+    font: 600 13px var(--mono);
+    background: color-mix(in oklab, color-mix(in oklab, #1e9e55 calc(100% - var(--heat)), #d94a3a) 22%, var(--surface));
+  }
+  html:global(.dark) td {
+    background: color-mix(in oklab, color-mix(in oklab, #1e9e55 calc(100% - var(--heat)), #d94a3a) 30%, var(--surface));
+  }
+  .chartnote {
+    margin-top: 10px;
+  }
+</style>
