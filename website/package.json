@@ -1,0 +1,28 @@
+{
+  "name": "excel-kit-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/react": "^5.0.7",
+    "@milojs/excel-kit": "file:..",
+    "@tanstack/react-virtual": "^3.14.22",
+    "astro": "^6.4.8",
+    "exceljs": "^4.4.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "vite": "^7.3.7"
+  }
+}

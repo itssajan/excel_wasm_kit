@@ -1,0 +1,44 @@
+---
+import Base from "../layouts/Base.astro";
+import BenchChart from "../components/BenchChart.astro";
+import BenchMatrix from "../components/BenchMatrix.astro";
+import BrowserBench from "../playground/BrowserBench";
+import { BUNDLE } from "../data/bench";
+import { GITHUB } from "../data/site";
+---
+
+<Base title="Benchmarks · excel-kit" description="excel-kit vs SheetJS vs exceljs: time, peak memory and bundle size. Run it in your browser with your own file.">
+  <div class="pagehead">
+    <div class="wrap">
+      <div class="eyebrow">Benchmarks</div>
+      <h1>Faster, and a fraction of the memory.</h1>
+      <p>
+        Parse a sheet and read every row. Each case runs in a fresh Node process (Node 22, Apple Silicon, median of 3 runs,
+        peak RSS including Node's ~43 MB baseline). Generated files with 8 columns of mixed types.
+        <a href={`${GITHUB}/tree/master/bench`} style="color:var(--green)">Methodology and scripts →</a>
+      </p>
+    </div>
+  </div>
+  <div class="wrap bench-page">
+    <BenchChart />
+
+    <BenchMatrix />
+
+    <div class="bundle">
+      <table class="data">
+        <thead><tr><th>Browser bundle</th><th class="r">Raw</th><th class="r">Gzip</th></tr></thead>
+        <tbody>
+          {BUNDLE.map((b) => <tr class:list={{ us: b.ours }}><td>{b.lib}</td><td class="r">{b.raw} KB</td><td class="r">{b.gzip} KB</td></tr>)}
+        </tbody>
+      </table>
+      <p>
+        Honest note: excel-kit is the largest download gzipped. Most of it is codepage tables for legacy <code>.xls</code> files.
+        Load it lazily, or in a worker, so it never blocks your first paint.
+      </p>
+    </div>
+
+    <h2 id="run">Run it in your browser</h2>
+    <p class="sub">Drop any spreadsheet. Each library parses it in a Web Worker on your machine. Nothing is uploaded.</p>
+    <BrowserBench client:only="react" />
+  </div>
+</Base>

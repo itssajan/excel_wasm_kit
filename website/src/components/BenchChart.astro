@@ -1,0 +1,85 @@
+---
+import { SIZES, formatMb, type Row } from "../data/bench";
+
+interface Props {
+  /** home page teaser: only the fastest excel-kit reader */
+  compact?: boolean;
+  initial?: string;
+}
+const { compact = false, initial = "50mb" } = Astro.props;
+const metrics = [
+  { key: "time", label: "Time", value: (r: Row) => r.s, format: (r: Row) => `${r.s.toFixed(2)} s` },
+  { key: "mem", label: "Peak memory", value: (r: Row) => r.mb, format: (r: Row) => formatMb(r.mb) },
+];
+const rowsFor = (data: Row[]) => (compact ? data.filter((r) => !r.ours || r.variant === "forEachRow()") : data);
+---
+
+<div class="chartcard bench-chart" data-metric="time" data-size={initial}>
+  <div class="head">
+    <div class="seg" role="group" aria-label="Metric">
+      {metrics.map((m, i) => <button type="button" data-set-metric={m.key} aria-pressed={i === 0 ? "true" : "false"}>{m.label}</button>)}
+    </div>
+    <div class="seg" role="group" aria-label="File size">
+      {
+        SIZES.map((s) => (
+          <button type="button" data-set-size={s.key} aria-pressed={s.key === initial ? "true" : "false"}>
+            {compact ? s.label : `${s.label} · ${s.rows}`}
+          </button>
+        ))
+      }
+    </div>
+    <slot />
+  </div>
+  {
+    SIZES.map((s) =>
+      metrics.map((m) => {
+        const rows = rowsFor(s.data);
+        const max = Math.max(...rows.map(m.value));
+        return (
+          <div class="bars" data-size={s.key} data-metric={m.key}>
+            {rows.map((r) => (
+              <div class:list={["bar", { us: r.ours }]}>
+                <span class="lbl">
+                  {r.lib} <small>{r.variant}</small>
+                </span>
+                <span class="track">
+                  <span class="fill" style={`width:${(m.value(r) / max) * 100}%`} />
+                </span>
+                <span class="val">{m.format(r)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }),
+    )
+  }
+  <div class="chartnote">Parse the sheet and read every row. Node 22, median of 3 runs. Lower is better.</div>
+</div>
+
+<style>
+  .bars {
+    display: none;
+  }
+  .bench-chart[data-metric="time"][data-size="1mb"] .bars[data-metric="time"][data-size="1mb"],
+  .bench-chart[data-metric="time"][data-size="10mb"] .bars[data-metric="time"][data-size="10mb"],
+  .bench-chart[data-metric="time"][data-size="50mb"] .bars[data-metric="time"][data-size="50mb"],
+  .bench-chart[data-metric="mem"][data-size="1mb"] .bars[data-metric="mem"][data-size="1mb"],
+  .bench-chart[data-metric="mem"][data-size="10mb"] .bars[data-metric="mem"][data-size="10mb"],
+  .bench-chart[data-metric="mem"][data-size="50mb"] .bars[data-metric="mem"][data-size="50mb"] {
+    display: grid;
+  }
+</style>
+
+<script>
+  for (const chart of document.querySelectorAll<HTMLElement>(".bench-chart")) {
+    chart.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest("button");
+      const metric = btn?.dataset.setMetric;
+      const size = btn?.dataset.setSize;
+      if (!btn || !(metric || size)) return;
+      if (metric) chart.dataset.metric = metric;
+      if (size) chart.dataset.size = size;
+      for (const b of btn.parentElement!.children) b.setAttribute("aria-pressed", String(b === btn));
+    });
+  }
+</script>

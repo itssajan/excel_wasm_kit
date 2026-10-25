@@ -1,0 +1,10 @@
+---
+import Base from "../layouts/Base.astro";
+import Playground from "../playground/Playground";
+---
+
+<Base title="Playground · excel-kit" description="Open any Excel file in your browser with excel-kit and see the code and timings behind every step." app>
+  <Playground client:only="react">
+    <div class="pg-loading" slot="fallback">Loading the playground…</div>
+  </Playground>
+</Base>

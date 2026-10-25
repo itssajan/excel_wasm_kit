@@ -21,7 +21,7 @@
     "type": "git",
     "url": "git+https://github.com/itssajan/excel_wasm_kit.git"
   },
-  "homepage": "https://github.com/itssajan/excel_wasm_kit#readme",
+  "homepage": "https://itssajan.github.io/excel_wasm_kit",
   "bugs": "https://github.com/itssajan/excel_wasm_kit/issues",
   "engines": {
     "node": ">=20"

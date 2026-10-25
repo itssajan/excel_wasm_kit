@@ -1,0 +1,18 @@
+---
+const cmd = "npm install @milojs/excel-kit";
+---
+
+<div class="fx">
+  <span class="name">A1</span><span class="f">fx</span><code class="cmd">{cmd}</code>
+  <button type="button" class="copy-cmd" data-cmd={cmd}>Copy</button>
+</div>
+
+<script>
+  for (const btn of document.querySelectorAll<HTMLButtonElement>(".copy-cmd")) {
+    btn.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(btn.dataset.cmd!);
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = "Copy"), 1500);
+    });
+  }
+</script>

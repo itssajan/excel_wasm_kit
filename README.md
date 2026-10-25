@@ -2,6 +2,8 @@
 
 Fast, low-memory Excel reader for browsers and Node.js, written in Rust ([calamine](https://github.com/tafia/calamine)) and compiled to WebAssembly.
 
+**[Website](https://itssajan.github.io/excel_wasm_kit) · [Playground](https://itssajan.github.io/excel_wasm_kit/playground) · [Benchmarks](https://itssajan.github.io/excel_wasm_kit/benchmarks)**
+
 - Reads **xlsx, xlsm, xlsb, xls and ods**
 - **~3.5× faster than SheetJS** and **2–10× less memory** on large files ([benchmarks](#benchmarks))
 - **Streaming** row readers for files bigger than you want in memory
@@ -68,7 +70,7 @@ const sheet = wb.sheet("Data", {
 });
 ```
 
-The callback fires about every 10,000 rows for xlsx and xlsm. Run it in a Web Worker and `postMessage` the progress to keep the page responsive (see [`demo/`](demo/)).
+The callback fires about every 10,000 rows for xlsx and xlsm. Run it in a Web Worker and `postMessage` the progress to keep the page responsive (see the [playground source](https://github.com/itssajan/excel_wasm_kit/tree/master/website/src/playground)).
 
 ## API
 
@@ -147,11 +149,11 @@ Parse a sheet and read every row, on Node 22 (Apple Silicon). Median of 3 runs. 
 | SheetJS | 2.55 s | 675 MB |
 | exceljs | 2.87 s | 1.0 GB |
 
-In the browser demo (Chromium), excel-kit opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
+In the [playground](https://itssajan.github.io/excel_wasm_kit/playground) (Chromium), excel-kit opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
 
 **Bundle size:** 705 KB raw / 360 KB gzip (wasm + JS). That is larger than SheetJS (328 KB gzip) and exceljs (252 KB gzip). Most of it is codepage tables for legacy `.xls` files.
 
-Full results and how to reproduce them: [`bench/`](bench/).
+Full results and how to reproduce them: [`bench/`](https://github.com/itssajan/excel_wasm_kit/tree/master/bench). Or [run it in your browser](https://itssajan.github.io/excel_wasm_kit/benchmarks) with your own file.
 
 ## Limitations
 
@@ -168,7 +170,7 @@ Requires Rust with the `wasm32-unknown-unknown` target, [wasm-pack](https://gith
 ```bash
 npm run build   # builds pkg/nodejs and pkg/web
 npm test        # Rust unit tests + node:test suite
-cd demo && npm install && npm run dev   # demo app with viewer and benchmark
+cd website && npm install && npm run dev   # website: playground, benchmarks, docs
 ```
 
 Releases are published from version tags: bump `version` in `package.json` and `Cargo.toml`, then push a `vX.Y.Z` tag.

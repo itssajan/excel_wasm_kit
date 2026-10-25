@@ -1,0 +1,32 @@
+---
+import { Code } from "astro:components";
+
+interface Props {
+  files: { name: string; code: string }[];
+}
+const { files } = Astro.props;
+---
+
+<div class="codecard code-tabs">
+  <div class="ctabs" role="tablist">
+    {files.map((f, i) => <button type="button" role="tab" aria-selected={i === 0 ? "true" : "false"} data-tab={i}>{f.name}</button>)}
+  </div>
+  {
+    files.map((f, i) => (
+      <div role="tabpanel" data-panel={i} hidden={i !== 0}>
+        <Code code={f.code} lang="js" theme="github-dark-dimmed" />
+      </div>
+    ))
+  }
+</div>
+
+<script>
+  for (const card of document.querySelectorAll<HTMLElement>(".code-tabs")) {
+    card.querySelector(".ctabs")!.addEventListener("click", (e) => {
+      const tab = (e.target as HTMLElement).closest<HTMLElement>("[data-tab]");
+      if (!tab) return;
+      for (const t of card.querySelectorAll("[data-tab]")) t.setAttribute("aria-selected", String(t === tab));
+      for (const p of card.querySelectorAll<HTMLElement>("[data-panel]")) p.hidden = p.dataset.panel !== tab.dataset.tab;
+    });
+  }
+</script>
