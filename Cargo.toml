@@ -9,6 +9,10 @@ repository = "https://github.com/kuramajs/excel"
 [lib]
 crate-type = ["cdylib"]
 
+# The writer is its own wasm (writer/), so readers don't download it.
+[workspace]
+members = ["writer"]
+
 
 [dependencies]
 wasm-bindgen = "0.2"

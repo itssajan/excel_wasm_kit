@@ -7,3 +7,12 @@ export const row: Cell[] = wb.sheet("Data", { onProgress: (read, total) => void 
 export const objects: Record<string, Cell>[] = wb.sheet("Data").toObjects({ header: 0 });
 using disposable = wb;
 export { disposable };
+
+import initWriter, { XlsxWriter, writeXlsx, toCsv, type WriteCell } from "@kuramajs/excel/writer";
+await initWriter();
+const out = new XlsxWriter();
+const cells: WriteCell[] = ["a", 1, true, new Date(), null, { formula: "A1", result: 1 }, { error: "#N/A" }];
+out.addSheet("Data").addRow(cells);
+export const xlsx: Uint8Array = out.save();
+export const quick: Uint8Array = writeXlsx({ People: [{ id: 1, name: "Ann" }] });
+export const csv: string = toCsv([["a", 1]], { delimiter: ";", escapeFormulas: true, bom: true });

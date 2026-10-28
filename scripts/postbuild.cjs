@@ -6,6 +6,8 @@ const refs = {
   // esnext.disposable: Symbol.dispose on Workbook and Sheet
   "pkg/web/web_index.d.ts": ["esnext.disposable", "dom"], // dom: init() takes fetch/WebAssembly types
   "pkg/nodejs/nodejs_index.d.ts": ["esnext.disposable"],
+  "pkg/writer/web/writer.d.ts": ["esnext.disposable", "dom"],
+  "pkg/writer/nodejs/writer.d.ts": ["esnext.disposable"],
 };
 
 for (const [file, libs] of Object.entries(refs)) {

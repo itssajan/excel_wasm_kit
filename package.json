@@ -47,20 +47,31 @@
       "default": "./js/web.mjs"
     },
     "./wasm": "./pkg/web/web_index_bg.wasm",
+    "./writer": {
+      "types": "./pkg/writer/web/writer.d.ts",
+      "node": {
+        "import": "./js/writer-node.mjs",
+        "require": "./pkg/writer/nodejs/writer.js"
+      },
+      "default": "./js/writer.mjs"
+    },
+    "./writer/wasm": "./pkg/writer/web/writer_bg.wasm",
     "./package.json": "./package.json"
   },
   "files": [
     "pkg/nodejs/",
     "pkg/web/",
+    "pkg/writer/",
     "js/"
   ],
   "scripts": {
-    "build": "npm run build:node && npm run build:web",
+    "build": "npm run build:node && npm run build:web && npm run build:writer",
     "build:node": "wasm-pack build --target nodejs --out-dir ./pkg/nodejs --out-name nodejs_index --release  --scope kuramajs",
     "build:web": "wasm-pack build --target web --out-dir ./pkg/web --out-name web_index --release --scope kuramajs",
+    "build:writer": "wasm-pack build writer --target nodejs --out-dir ../pkg/writer/nodejs --out-name writer --release --scope kuramajs && wasm-pack build writer --target web --out-dir ../pkg/writer/web --out-name writer --release --scope kuramajs",
     "prebuild": "rm -rf ./pkg",
-    "postbuild": "rm ./pkg/**/.gitignore && node scripts/postbuild.cjs",
-    "test": "cargo test && node --test tests/workbook.test.mjs && npm run test:types",
+    "postbuild": "find pkg -name .gitignore -delete && node scripts/postbuild.cjs",
+    "test": "cargo test && node --test tests/*.test.mjs && npm run test:types",
     "test:types": "npx -y -p typescript tsc --noEmit --strict --module nodenext --moduleResolution nodenext --target es2022 --lib es2022 tests/types/consumer.mts"
   }
 }
