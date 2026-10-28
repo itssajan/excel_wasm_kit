@@ -110,9 +110,9 @@ fn parse_csv(bytes: &[u8]) -> Result<Range<Data>, JsValue> {
     };
     let first_line = text.lines().next().unwrap_or("");
     let delimiter = *b",;\t"
-        .into_iter()
+        .iter()
         .rev() // ties go to the earlier entry (`max_by_key` keeps the last max)
-        .max_by_key(|&d| first_line.bytes().filter(|&b| b == d).count())
+        .max_by_key(|&&d| first_line.bytes().filter(|&b| b == d).count())
         .unwrap_throw();
     let mut rows = Vec::new();
     let mut width = 0;

@@ -105,9 +105,14 @@ fn iso_date(days: i64) -> String {
 
 fn write_csv(rows: u32, out: &str) {
     let cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
-    let mut w = csv::WriterBuilder::new().flexible(true).from_path(out).unwrap();
-    w.write_record(["id", "name", "city", "price", "qty", "date", "active", "note"])
+    let mut w = csv::WriterBuilder::new()
+        .flexible(true)
+        .from_path(out)
         .unwrap();
+    w.write_record([
+        "id", "name", "city", "price", "qty", "date", "active", "note",
+    ])
+    .unwrap();
     for r in 1..=rows {
         w.write_record([
             r.to_string(),
@@ -123,10 +128,46 @@ fn write_csv(rows: u32, out: &str) {
     }
     // Edge cases for manual UI testing: quoting, embedded newline, leading zero, unicode, short row.
     for row in [
-        &["0", "Smith, J", "Kandy", "1,250.50", "007", "03/04/2025", "TRUE", "comma inside quotes"][..],
-        &["0", "Line\nbreak", "Galle", "", "", "", "", "newline inside a cell"],
-        &["0", "Say \"hi\"", "Jaffna", "1e5", "01234", "", "", "escaped quotes, leading zero"],
-        &["0", "Café Ünïcödé 日本", "Colombo", "", "", "", "", "non-ASCII text"],
+        &[
+            "0",
+            "Smith, J",
+            "Kandy",
+            "1,250.50",
+            "007",
+            "03/04/2025",
+            "TRUE",
+            "comma inside quotes",
+        ][..],
+        &[
+            "0",
+            "Line\nbreak",
+            "Galle",
+            "",
+            "",
+            "",
+            "",
+            "newline inside a cell",
+        ],
+        &[
+            "0",
+            "Say \"hi\"",
+            "Jaffna",
+            "1e5",
+            "01234",
+            "",
+            "",
+            "escaped quotes, leading zero",
+        ],
+        &[
+            "0",
+            "Café Ünïcödé 日本",
+            "Colombo",
+            "",
+            "",
+            "",
+            "",
+            "non-ASCII text",
+        ],
         &["0", "short row"],
     ] {
         w.write_record(row).unwrap();
