@@ -5,14 +5,14 @@ import Playground from "../playground/Playground";
 
 <Base
   title="Excel file viewer and playground · @kuramajs/excel"
-  description="Open any xlsx, xls, xlsb or ods file in your browser and see the @kuramajs/excel code, timings and memory behind each step. It runs locally; nothing is uploaded."
+  description="Open any xlsx, xls, xlsb, ods or csv file in your browser and see the @kuramajs/excel code, timings and memory behind each step. It runs locally; nothing is uploaded."
   app
 >
   <Playground client:only="react">
     <div class="pg-loading" slot="fallback">
       <h1>Excel file viewer and playground</h1>
       <p>
-        Open any xlsx, xlsm, xlsb, xls or ods file and explore it with @kuramajs/excel, a Rust + WebAssembly reader. See the code, timings and
+        Open any xlsx, xlsm, xlsb, xls, ods or csv file and explore it with @kuramajs/excel, a Rust + WebAssembly reader. See the code, timings and
         memory behind each step. Everything runs in a Web Worker on your machine; nothing is uploaded.
       </p>
       <noscript><p>The playground needs JavaScript and WebAssembly.</p></noscript>

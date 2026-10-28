@@ -1,5 +1,6 @@
 //! Benchmark fixtures: `cargo run --release --example gen_bench -- <rows> <out.xlsx> [data_sheets=1]`
 //! One sheet holds at most 1,048,575 data rows (~47 MB); use more data sheets for bigger files.
+//! An `out.csv` path writes the same columns as CSV (no row limit), plus edge-case rows at the end.
 use rust_xlsxwriter::{Format, Formula, Workbook};
 
 fn main() {
@@ -13,6 +14,10 @@ fn main() {
     let sheets: u32 = args
         .next()
         .map_or(1, |s| s.parse().expect("data_sheets must be a number"));
+
+    if out.ends_with(".csv") {
+        return write_csv(rows, &out);
+    }
 
     let mut wb = Workbook::new();
     let date_fmt = Format::new().set_num_format("yyyy-mm-dd");
@@ -82,4 +87,49 @@ fn main() {
     hidden.set_hidden(true);
 
     wb.save(&out).unwrap();
+}
+
+/// Days since 1970-01-01 -> "yyyy-mm-dd" (Howard Hinnant's civil_from_days).
+fn iso_date(days: i64) -> String {
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{y:04}-{m:02}-{d:02}")
+}
+
+fn write_csv(rows: u32, out: &str) {
+    let cities = ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Matara"];
+    let mut w = csv::WriterBuilder::new().flexible(true).from_path(out).unwrap();
+    w.write_record(["id", "name", "city", "price", "qty", "date", "active", "note"])
+        .unwrap();
+    for r in 1..=rows {
+        w.write_record([
+            r.to_string(),
+            format!("Customer {}", r % 5000),
+            cities[(r % 6) as usize].to_string(),
+            ((r % 1000) as f64 * 1.25).to_string(),
+            (r % 97).to_string(),
+            iso_date(18262 + (r % 1500) as i64), // 18262 = 2020-01-01
+            (r % 3 == 0).to_string(),
+            format!("Order note number {r} with some text"),
+        ])
+        .unwrap();
+    }
+    // Edge cases for manual UI testing: quoting, embedded newline, leading zero, unicode, short row.
+    for row in [
+        &["0", "Smith, J", "Kandy", "1,250.50", "007", "03/04/2025", "TRUE", "comma inside quotes"][..],
+        &["0", "Line\nbreak", "Galle", "", "", "", "", "newline inside a cell"],
+        &["0", "Say \"hi\"", "Jaffna", "1e5", "01234", "", "", "escaped quotes, leading zero"],
+        &["0", "Café Ünïcödé 日本", "Colombo", "", "", "", "", "non-ASCII text"],
+        &["0", "short row"],
+    ] {
+        w.write_record(row).unwrap();
+    }
+    w.flush().unwrap();
 }

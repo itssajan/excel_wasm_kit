@@ -206,6 +206,39 @@ test("rowsSlice behaves like Array.slice, clamped", () => {
   assert.deepEqual(sheet.rowsSlice(50, 60), []);
 });
 
+test("reads csv as one sheet of strings", () => {
+  const csv = Buffer.from('name,age\nAnn,30\n"Smith, J","two\nlines"\r\nBob\n\n"say ""hi""",01234\n');
+  const wb = Workbook.open(csv);
+  assert.deepEqual(wb.sheets(), [{ name: "Sheet1", visibility: "Visible" }]);
+  const rows = [
+    ["name", "age"],
+    ["Ann", "30"],
+    ["Smith, J", "two\nlines"],
+    ["Bob", null],
+    ['say "hi"', "01234"],
+  ];
+  assert.deepEqual(wb.sheet("Sheet1").rows(), rows);
+  assert.deepEqual([...wb.iterRows("Sheet1")], rows);
+  const streamed = [];
+  wb.forEachRow("Sheet1", (row) => void streamed.push(row));
+  assert.deepEqual(streamed, rows);
+  assert.deepEqual(wb.sheet("Sheet1").toObjects()[0], { name: "Ann", age: "30" });
+  assert.throws(() => wb.sheet("Data"), (e) => e.code === "SHEET_NOT_FOUND");
+});
+
+test("csv detects delimiter, BOM and windows-1252", () => {
+  const rows = (b) => Workbook.open(b).sheet("Sheet1").rows();
+  assert.deepEqual(rows(Buffer.from("﻿a;b\n1,5;2\n")), [["a", "b"], ["1,5", "2"]]);
+  assert.deepEqual(rows(Buffer.from("a\tb\n1\t2")), [["a", "b"], ["1", "2"]]);
+  assert.deepEqual(rows(Buffer.from([0x63, 0x61, 0x66, 0xe9])), [["café"]]);
+});
+
+test("rejects input that is neither a workbook nor csv", () => {
+  const invalid = (e) => e.code === "INVALID_FILE";
+  assert.throws(() => Workbook.open(new Uint8Array()), invalid);
+  assert.throws(() => Workbook.open(Buffer.from("<html><body>x</body></html>")), invalid);
+});
+
 test("CommonJS require exposes the same API", () => {
   const cjs = createRequire(import.meta.url)("@kuramajs/excel");
   const wb = cjs.Workbook.open(bytes);

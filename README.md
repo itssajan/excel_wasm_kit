@@ -6,7 +6,7 @@ Fast, low-memory Excel reader for browsers and Node.js, written in Rust ([calami
 
 Formerly published as `@milojs/excel-kit`.
 
-- Reads **xlsx, xlsm, xlsb, xls and ods**
+- Reads **xlsx, xlsm, xlsb, xls, ods and csv**
 - **~3.5× faster than SheetJS** and **2–10× less memory** on large files ([benchmarks](#benchmarks))
 - **Streaming** row readers for files bigger than you want in memory
 - **Typed cells**: numbers, booleans, `Date`s, `null`, and error values, not strings
@@ -64,6 +64,10 @@ wb.forEachRow("Data", (row, index) => {
 
 Streaming is low-memory for xlsx and xlsm. Other formats are loaded fully first, then streamed.
 
+## CSV
+
+`Workbook.open` also reads CSV. You get one sheet named `"Sheet1"`, and every cell is a string (`null` if empty). Types aren't guessed, so `"01234"` keeps its leading zero. The delimiter (`,` `;` or tab) is picked from the first line. Text is read as UTF-8, or as windows-1252 (what Excel's "CSV" save writes) if it isn't valid UTF-8. Blank lines are skipped.
+
 ## Progress for big sheets
 
 ```js
@@ -78,7 +82,7 @@ The callback fires about every 10,000 rows for xlsx and xlsm. Run it in a Web Wo
 
 | | |
 |---|---|
-| `Workbook.open(data: Uint8Array \| ArrayBuffer)` | Parse a workbook. The format is detected from the bytes. |
+| `Workbook.open(data: Uint8Array \| ArrayBuffer)` | Parse a workbook or CSV. The format is detected from the bytes. |
 | `wb.sheets(): SheetInfo[]` | Worksheets in order: `{ name, visibility: "Visible" \| "Hidden" \| "VeryHidden" }`. Chart sheets are skipped. |
 | `wb.sheet(name, { onProgress? }): Sheet` | Parse one worksheet. |
 | `wb.iterRows(name): Generator<Cell[]>` | Lazily iterate rows. |
@@ -153,7 +157,7 @@ Parse a sheet and read every row, on Node 22 (Apple Silicon). Median of 3 runs. 
 
 In the [playground](https://kuramajs.github.io/excel/playground) (Chromium), @kuramajs/excel opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
 
-**Bundle size:** 712 KB raw / 361 KB gzip (wasm + JS). That is larger than SheetJS (328 KB gzip) and exceljs (252 KB gzip). Most of it is codepage tables for legacy `.xls` files.
+**Bundle size:** 732 KB raw / 370 KB gzip (wasm + JS). That is larger than SheetJS (328 KB gzip) and exceljs (252 KB gzip). Most of it is calamine's parsers for five formats plus text-encoding tables that xlsx and ods also need. Dropping `.xls` would only save about 20 KB gzip.
 
 Full results and how to reproduce them: [`bench/`](https://github.com/kuramajs/excel/tree/master/bench). Or [run it in your browser](https://kuramajs.github.io/excel/benchmarks) with your own file.
 

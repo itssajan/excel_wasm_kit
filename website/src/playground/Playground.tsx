@@ -189,7 +189,7 @@ export default function Playground() {
             <FileDrop onFile={openFile} className="big">
               <div>
                 <h2>Drop a spreadsheet to explore it</h2>
-                <p>xlsx, xlsm, xlsb, xls or ods. It's parsed by WebAssembly in a Web Worker on your machine; nothing is uploaded.</p>
+                <p>xlsx, xlsm, xlsb, xls, ods or csv. It's parsed by WebAssembly in a Web Worker on your machine; nothing is uploaded.</p>
               </div>
             </FileDrop>
           </div>
