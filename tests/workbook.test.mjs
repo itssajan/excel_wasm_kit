@@ -239,6 +239,22 @@ test("rejects input that is neither a workbook nor csv", () => {
   assert.throws(() => Workbook.open(Buffer.from("<html><body>x</body></html>")), invalid);
 });
 
+test("browser init() explains an HTML page served instead of the wasm", async () => {
+  const { default: webInit } = await import("../js/web.mjs");
+  const html = new Response("<!DOCTYPE html><html></html>", { headers: { "Content-Type": "text/html" } });
+  const warn = console.warn;
+  console.warn = () => {}; // wasm-bindgen warns about the wrong MIME type before failing
+  try {
+    await assert.rejects(webInit({ module_or_path: html }), (e) => {
+      assert.match(e.message, /returned an HTML page.*excel\/troubleshooting/);
+      assert.ok(e.cause instanceof WebAssembly.CompileError);
+      return true;
+    });
+  } finally {
+    console.warn = warn;
+  }
+});
+
 test("CommonJS require exposes the same API", () => {
   const cjs = createRequire(import.meta.url)("@kuramajs/excel");
   const wb = cjs.Workbook.open(bytes);

@@ -1,0 +1,12 @@
+---
+import MarkdownDoc from "../components/MarkdownDoc.astro";
+// TROUBLESHOOTING.md in the repo root is the source, so it also reads well on GitHub
+import * as page from "../../../TROUBLESHOOTING.md";
+---
+
+<MarkdownDoc
+  title="@kuramajs/excel troubleshooting: wasm fails to load after deploy"
+  description="Fix 'expected magic word 00 61 73 6d, found 3c 21 44 4f': your server or bundler returned index.html instead of the .wasm file. Vite, SPA fallbacks and stale CDN caches."
+  heading="@kuramajs/excel troubleshooting"
+  md={page}
+/>

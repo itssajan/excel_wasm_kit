@@ -161,6 +161,18 @@ In the [playground](https://kuramajs.github.io/excel/playground) (Chromium), @ku
 
 Full results and how to reproduce them: [`bench/`](https://github.com/kuramajs/excel/tree/master/bench). Or [run it in your browser](https://kuramajs.github.io/excel/benchmarks) with your own file.
 
+## Troubleshooting
+
+**`expected magic word 00 61 73 6d, found 3c 21 44 4f`** (or "the .wasm file didn't load") means the browser asked for the `.wasm` file and got an HTML page, usually your app's `index.html`. Three common causes:
+
+- **Vite dev only:** pre-bundling moves the JS away from the wasm. Add `optimizeDeps: { exclude: ["@kuramajs/excel"] }` to `vite.config`.
+- **Deployed only:** your host's SPA rewrite sends `.wasm` to `index.html`. Let `.wasm` through and serve it as `application/wasm`.
+- **Still failing after a fix:** the CDN cached the HTML, often only for `Accept-Encoding: br`. Clear the cache or redeploy.
+
+You can also pass the file's URL yourself: `import wasmUrl from "@kuramajs/excel/wasm?url"; await init({ module_or_path: wasmUrl })`.
+
+Step-by-step fixes for Vite, Amplify, nginx, S3/CloudFront, Netlify and Vercel: [troubleshooting guide](https://kuramajs.github.io/excel/troubleshooting).
+
 ## Limitations
 
 - Read-only. No writing, formulas, styles, merged-cell info or images.

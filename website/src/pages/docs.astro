@@ -1,102 +1,12 @@
 ---
-import Base from "../layouts/Base.astro";
+import MarkdownDoc from "../components/MarkdownDoc.astro";
 // The README is the single source of truth for the docs
-import { Content, getHeadings } from "../../../README.md";
-
-const sections = getHeadings().filter((h) => h.depth === 2);
+import * as readme from "../../../README.md";
 ---
 
-<Base
+<MarkdownDoc
   title="@kuramajs/excel docs: install, API, cell types and errors"
   description="Read xlsx, xls, xlsb, ods and csv in JavaScript with @kuramajs/excel: install, quick start, streaming, progress, API, cell types and error codes."
->
-  <div class="wrap docs">
-    <aside class="toc" aria-label="On this page">
-      <div class="t">On this page</div>
-      {
-        sections.map((h, i) => (
-          <a href={`#${h.slug}`}>
-            <span>A{i + 1}</span>
-            {h.text}
-          </a>
-        ))
-      }
-    </aside>
-    <article class="doc">
-      <h1 class="sr-only">@kuramajs/excel documentation</h1>
-      <Content />
-    </article>
-  </div>
-</Base>
-
-<style is:global>
-  .doc h2 {
-    scroll-margin-top: 80px;
-  }
-  .doc h3 {
-    margin: 28px 0 8px;
-  }
-  .doc p,
-  .doc li {
-    color: var(--muted);
-    max-width: 760px;
-  }
-  .doc :not(pre) > code {
-    font-size: 0.88em;
-    padding: 2px 6px;
-    border-radius: 5px;
-    background: var(--bg-alt);
-    border: 1px solid var(--grid);
-    color: var(--text);
-  }
-  .doc a {
-    color: var(--green);
-  }
-  .doc pre.astro-code {
-    margin: 16px 0 20px;
-  }
-  .doc table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-    margin: 16px 0;
-    display: block;
-    overflow-x: auto;
-    border: 1px solid var(--grid-strong);
-    border-radius: var(--radius);
-  }
-  .doc th,
-  .doc td {
-    padding: 9px 14px;
-    border-bottom: 1px solid var(--grid);
-    text-align: left;
-    vertical-align: top;
-  }
-  .doc thead th {
-    background: var(--header-cell);
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  .doc tr:last-child td {
-    border-bottom: 0;
-  }
-  .toc a.on {
-    border-left-color: var(--green);
-    color: var(--green);
-    background: var(--green-soft);
-  }
-</style>
-
-<script>
-  // highlight the last section whose heading has scrolled past the header
-  const links = [...document.querySelectorAll<HTMLAnchorElement>(".toc a")];
-  const headings = links.map((a) => document.getElementById(a.hash.slice(1))!);
-  function update() {
-    const atBottom = innerHeight + scrollY >= document.body.scrollHeight - 4;
-    const i = atBottom ? headings.length - 1 : headings.findLastIndex((h) => h.getBoundingClientRect().top < 120);
-    links.forEach((a, j) => a.classList.toggle("on", j === Math.max(i, 0)));
-  }
-  addEventListener("scroll", update, { passive: true });
-  update();
-</script>
+  heading="@kuramajs/excel documentation"
+  md={readme}
+/>
