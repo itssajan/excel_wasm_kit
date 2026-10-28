@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 
-const ACCEPT = ".xlsx,.xlsm,.xlsb,.xls,.ods";
+const ACCEPT = ".xlsx,.xlsm,.xlsb,.xls,.ods,.csv";
 
 /** Drop zone + file picker. Children render inside the zone. */
 export function FileDrop({ onFile, disabled, className = "", children }: { onFile: (f: File) => void; disabled?: boolean; className?: string; children: ReactNode }) {

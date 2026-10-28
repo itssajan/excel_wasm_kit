@@ -75,12 +75,79 @@ fn open_any(bytes: &Rc<[u8]>) -> Result<Sheets<Bytes>, JsValue> {
         Some(e) => Err(calamine_error(e)),
         None => Err(error(
             "INVALID_FILE",
-            "Unrecognized workbook (expected xlsx, xlsm, xlsb, xls or ods)",
+            "Unrecognized workbook (expected xlsx, xlsm, xlsb, xls, ods or csv)",
         )),
     }
 }
 
 /// Days since 1970-01-01 for a proleptic Gregorian date (Howard Hinnant's days_from_civil).
+/// The one sheet a CSV file has.
+const CSV_SHEET: &str = "Sheet1";
+
+/// CSV has no magic bytes, so treat input as CSV when it reads as text: no control bytes besides
+/// tab/CR/LF (zip and OLE headers always have some) and not markup (HTML/XML saved as ".xls").
+fn looks_like_csv(bytes: &[u8]) -> bool {
+    let head = &bytes[..bytes.len().min(8192)];
+    !head.is_empty()
+        && head
+            .iter()
+            .all(|&b| b >= 0x20 || matches!(b, b'\t' | b'\n' | b'\r'))
+        && head.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'<')
+}
+
+/// Parse CSV into string cells (empty -> `Empty`). UTF-8 (BOM stripped), else windows-1252, which
+/// is what Excel's plain "CSV" save writes. Delimiter is whichever of `,` `;` tab the first line has
+/// most of. Blank lines are skipped.
+fn parse_csv(bytes: &[u8]) -> Result<Range<Data>, JsValue> {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let text = match std::str::from_utf8(bytes) {
+        Ok(s) => std::borrow::Cow::Borrowed(s),
+        Err(_) => {
+            encoding_rs::WINDOWS_1252
+                .decode_without_bom_handling(bytes)
+                .0
+        }
+    };
+    let first_line = text.lines().next().unwrap_or("");
+    let delimiter = *b",;\t"
+        .iter()
+        .rev() // ties go to the earlier entry (`max_by_key` keeps the last max)
+        .max_by_key(|&&d| first_line.bytes().filter(|&b| b == d).count())
+        .unwrap_throw();
+    let mut rows = Vec::new();
+    let mut width = 0;
+    let mut reader = csv::ReaderBuilder::new()
+        .has_headers(false)
+        .flexible(true)
+        .delimiter(delimiter)
+        .from_reader(text.as_bytes());
+    for record in reader.records() {
+        let record = record.map_err(|e| error("INVALID_FILE", &e.to_string()))?;
+        width = width.max(record.len());
+        rows.push(record);
+    }
+    if rows.is_empty() || width == 0 {
+        return Ok(Range::empty());
+    }
+    let mut range = Range::new((0, 0), (rows.len() as u32 - 1, width as u32 - 1));
+    for (r, record) in rows.iter().enumerate() {
+        for (c, field) in record.iter().enumerate().filter(|(_, f)| !f.is_empty()) {
+            range.set_value((r as u32, c as u32), Data::String(field.to_owned()));
+        }
+    }
+    Ok(range)
+}
+
+fn csv_sheet(bytes: &[u8], name: &str) -> Result<Range<Data>, JsValue> {
+    if name != CSV_SHEET {
+        return Err(error(
+            "SHEET_NOT_FOUND",
+            &format!("Worksheet '{name}' not found"),
+        ));
+    }
+    parse_csv(bytes)
+}
+
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
@@ -165,6 +232,16 @@ fn row_value(row: &[Data]) -> Array {
 /// Call `f(row, index)`; stop when it returns `false`. JS exceptions propagate.
 fn emit(f: &Function, row: &Array, index: u32) -> Result<bool, JsValue> {
     Ok(f.call2(&JsValue::NULL, row, &index.into())? != JsValue::FALSE)
+}
+
+/// `forEachRow` over an already-loaded range.
+fn emit_range(f: &Function, range: &Range<Data>) -> Result<(), JsValue> {
+    for (i, row) in range.rows().enumerate() {
+        if !emit(f, &row_value(row), i as u32)? {
+            break;
+        }
+    }
+    Ok(())
 }
 
 /// Header keys: stringified cells, `__EMPTY_<col>` for blanks, `_<n>` suffix for duplicates.
@@ -375,6 +452,8 @@ pub struct Workbook {
     returned: Mailbox,
     sheet_list: Vec<(String, &'static str)>,
     bytes: Rc<[u8]>,
+    /// CSV input: `book` stays `None` and each call parses `bytes` again (one sheet, cheap to redo)
+    csv: bool,
 }
 
 impl Workbook {
@@ -394,7 +473,7 @@ impl Workbook {
 
 #[wasm_bindgen]
 impl Workbook {
-    /// Parse a workbook (xlsx, xlsm, xlsb, xls, ods) from bytes.
+    /// Parse a workbook (xlsx, xlsm, xlsb, xls, ods) or CSV from bytes. CSV gives one sheet, "Sheet1".
     pub fn open(
         #[wasm_bindgen(unchecked_param_type = "Uint8Array | ArrayBuffer")] data: JsValue,
     ) -> Result<Workbook, JsValue> {
@@ -402,12 +481,22 @@ impl Workbook {
             return Err(error("INVALID_INPUT", "Expected Uint8Array or ArrayBuffer"));
         }
         let bytes: Rc<[u8]> = Uint8Array::new(&data).to_vec().into();
+        if looks_like_csv(&bytes) {
+            return Ok(Workbook {
+                sheet_list: vec![(CSV_SHEET.to_owned(), "Visible")],
+                book: None,
+                returned: Mailbox::default(),
+                bytes,
+                csv: true,
+            });
+        }
         let book = open_any(&bytes)?;
         Ok(Workbook {
             sheet_list: sheet_list(&book),
             book: Some(book),
             returned: Mailbox::default(),
             bytes,
+            csv: false,
         })
     }
 
@@ -439,6 +528,11 @@ impl Workbook {
                 .ok(),
             None => None,
         };
+        if self.csv {
+            return Ok(Sheet {
+                range: csv_sheet(&self.bytes, name)?,
+            });
+        }
         let range = match (self.book()?, on_progress) {
             (Sheets::Xlsx(xlsx), Some(cb)) => xlsx_range_with_progress(xlsx, name, &cb)?,
             (book, _) => book.worksheet_range(name).map_err(calamine_error)?,
@@ -454,7 +548,9 @@ impl Workbook {
     /// the meantime still work, but parse the file again, so they are slower on big files.
     #[wasm_bindgen(js_name = iterRows, unchecked_return_type = "Generator<Cell[], void, undefined>")]
     pub fn iter_rows(&mut self, name: &str) -> Result<JsValue, JsValue> {
-        let source = if matches!(self.book()?, Sheets::Xlsx(_)) {
+        let source = if self.csv {
+            RowSource::Loaded(csv_sheet(&self.bytes, name)?, 0)
+        } else if matches!(self.book()?, Sheets::Xlsx(_)) {
             // ponytail: `book()` just made sure this is the xlsx, so the fallback never runs. It is kept on
             // purpose: a second caller stops the compiler inlining the xlsx open into `open_any`, which
             // otherwise makes `Workbook::open` touch ~70 MB more memory on a 50 MB file (measured).
@@ -489,16 +585,16 @@ impl Workbook {
         #[wasm_bindgen(unchecked_param_type = "(row: Cell[], index: number) => boolean | void")]
         callback: Function,
     ) -> Result<(), JsValue> {
+        if self.csv {
+            return emit_range(&callback, &csv_sheet(&self.bytes, name)?);
+        }
         let xlsx = match self.book()? {
             Sheets::Xlsx(xlsx) => xlsx,
             book => {
-                let range = from_a1(book.worksheet_range(name).map_err(calamine_error)?);
-                for (i, row) in range.rows().enumerate() {
-                    if !emit(&callback, &row_value(row), i as u32)? {
-                        break;
-                    }
-                }
-                return Ok(());
+                return emit_range(
+                    &callback,
+                    &from_a1(book.worksheet_range(name).map_err(calamine_error)?),
+                );
             }
         };
 

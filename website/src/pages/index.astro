@@ -48,7 +48,7 @@ const features = [
 
 <Base
   title="@kuramajs/excel: fast Excel reader for JavaScript & WebAssembly"
-  description="Read xlsx, xlsm, xlsb, xls and ods files in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
+  description="Read xlsx, xlsm, xlsb, xls, ods and csv files in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
@@ -60,7 +60,7 @@ const features = [
     license: "https://opensource.org/licenses/MIT",
     version: VERSION,
     url: NPM,
-    keywords: "excel, xlsx, xls, xlsb, ods, spreadsheet, parser, reader, webassembly, rust, streaming",
+    keywords: "excel, xlsx, xls, xlsb, ods, csv, spreadsheet, parser, reader, webassembly, rust, streaming",
   }}
 >
   <section class="hero gridbg">
@@ -107,12 +107,12 @@ const features = [
     <div class="stats">
       <div><span class="ref">A1</span><b>10×</b><span>less memory (282 MB vs 2.9 GB)</span></div>
       <div><span class="ref">B1</span><b>3.5×</b><span>faster than SheetJS on a 1M-row file</span></div>
-      <div><span class="ref">C1</span><b>5</b><span>formats: xlsx · xlsm · xlsb · xls · ods</span></div>
+      <div><span class="ref">C1</span><b>6</b><span>formats: xlsx · xlsm · xlsb · xls · ods · csv</span></div>
       <div><span class="ref">D1</span><b>0</b><span>JavaScript dependencies</span></div>
     </div>
     <div class="formats">
       <span>Reads</span>
-      <div class="ftabs"><span>.xlsx</span><span>.xlsm</span><span>.xlsb</span><span>.xls</span><span>.ods</span></div>
+      <div class="ftabs"><span>.xlsx</span><span>.xlsm</span><span>.xlsb</span><span>.xls</span><span>.ods</span><span>.csv</span></div>
       <span>Runs in</span>
       <div class="runs">
         <span class="badge"><b>Browsers</b></span><span class="badge"><b>Web Workers</b></span><span class="badge"><b>Node.js 20+</b></span><span class="badge"><b>ESM + CJS</b></span>

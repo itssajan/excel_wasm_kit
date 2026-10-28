@@ -35,7 +35,7 @@
     "node": ">=20"
   },
   "main": "pkg/nodejs/nodejs_index.js",
-  "module": "pkg/web/web_index.js",
+  "module": "js/web.mjs",
   "types": "pkg/web/web_index.d.ts",
   "exports": {
     ".": {
@@ -44,8 +44,9 @@
         "import": "./js/node.mjs",
         "require": "./pkg/nodejs/nodejs_index.js"
       },
-      "default": "./pkg/web/web_index.js"
+      "default": "./js/web.mjs"
     },
+    "./wasm": "./pkg/web/web_index_bg.wasm",
     "./package.json": "./package.json"
   },
   "files": [

@@ -73,7 +73,7 @@ export default function BrowserBench() {
             <b>{file.name}</b> · {formatBytes(file.size)}
           </span>
         ) : (
-          <span>Drop an xlsx, xlsm, xlsb, xls or ods file, or</span>
+          <span>Drop an xlsx, xlsm, xlsb, xls, ods or csv file, or</span>
         )}
       </FileDrop>
       {error && (
