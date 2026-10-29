@@ -1,7 +1,7 @@
 {
   "name": "@kuramajs/excel",
-  "version": "0.1.2",
-  "description": "Fast, low-memory Excel reader (xlsx, xlsm, xlsb, xls, ods) for browsers and Node, in WebAssembly",
+  "version": "0.2.0",
+  "description": "Fast, low-memory Excel reader (xlsx, xlsm, xlsb, xls, ods, csv) and streaming xlsx writer for browsers and Node, in WebAssembly",
   "keywords": [
     "excel",
     "xlsx",
@@ -15,6 +15,9 @@
     "excel-parser",
     "xlsx-parser",
     "read-excel",
+    "write-excel",
+    "xlsx-writer",
+    "csv",
     "spreadsheet-parser",
     "wasm",
     "webassembly",

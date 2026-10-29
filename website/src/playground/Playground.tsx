@@ -46,6 +46,7 @@ export default function Playground() {
   const [selected, setSelected] = useState<{ sel: Selection; cell: Cell } | null>(null);
   const [lastSlice, setLastSlice] = useState<[number, number]>([0, PAGE]);
   const [log, setLog] = useState<LogEntry[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [showCode, setShowCode] = useState(() => !matchMedia("(max-width: 760px)").matches);
 
   const addLog = (call: string, detail: string) =>
@@ -82,7 +83,17 @@ export default function Playground() {
           setLastSlice([data.start, data.end]);
           addLog(`sheet.rowsSlice(${data.start}, ${data.end})`, formatMs(data.ms));
           break;
+        case "exported": {
+          setExporting(false);
+          const blob = new Blob([data.bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+          const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${data.name}.xlsx` });
+          a.click();
+          URL.revokeObjectURL(a.href);
+          addLog("new XlsxWriter() … save()", `${formatMs(data.ms)} · ${data.rows.toLocaleString()} rows · ${formatBytes(data.bytes.length)}`);
+          break;
+        }
         case "error":
+          setExporting(false);
           setProgress(null);
           setError(data.code ? `${data.code}: ${data.message}` : data.message);
           addLog("throw", data.code ?? "Error");
@@ -157,6 +168,19 @@ export default function Playground() {
             <span className="badge" title="WebAssembly memory (it grows but never shrinks)">
               wasm <b>{formatBytes(memory)}</b>
             </span>
+          )}
+          {active && (
+            <button
+              className="codebtn"
+              disabled={busy || exporting}
+              title="Write this sheet to a new .xlsx with @kuramajs/excel/writer"
+              onClick={() => {
+                setExporting(true);
+                send({ type: "export" });
+              }}
+            >
+              {exporting ? "Exporting…" : "⤓ Export xlsx"}
+            </button>
           )}
           <button className="codebtn" aria-pressed={showCode} onClick={() => setShowCode((s) => !s)}>
             &lt;/&gt; Code

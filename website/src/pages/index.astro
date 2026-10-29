@@ -43,24 +43,27 @@ const features = [
   { ref: "A2", ico: "{}", title: "TypeScript", text: "Exact types for every cell, option and error code." },
   { ref: "B2", ico: "⚙", title: "Workers-ready", text: "Parse off the main thread and keep your UI smooth." },
   { ref: "C2", ico: "!", title: "Clear errors", text: "PASSWORD_PROTECTED, SHEET_NOT_FOUND and more, as error codes." },
+  { ref: "A3", ico: "⇡", title: "Streaming writer", text: "Write a million rows in about 6 seconds and 240 MB. Rows are compressed as you add them." },
+  { ref: "B3", ico: "▦", title: "Formats & tables", text: "Fonts, fills, borders, number formats, merges, Excel tables, conditional formats and dropdowns." },
+  { ref: "C3", ico: ",", title: "CSV in and out", text: "Open CSV like any workbook. Export with toCsv, with CSV-injection escaping on by default." },
 ];
 ---
 
 <Base
-  title="@kuramajs/excel: fast Excel reader for JavaScript & WebAssembly"
-  description="Read xlsx, xlsm, xlsb, xls, ods and csv files in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
+  title="@kuramajs/excel: fast Excel reader and writer for JavaScript & WebAssembly"
+  description="Read xlsx, xlsm, xlsb, xls, ods and csv files, and write formatted xlsx, in the browser or Node.js using little memory. Typed cells, streaming rows and progress callbacks. Rust + WebAssembly."
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "SoftwareSourceCode",
     name: "@kuramajs/excel",
-    description: "Fast, low-memory Excel reader for browsers and Node.js, in Rust + WebAssembly.",
+    description: "Fast, low-memory Excel reader and writer for browsers and Node.js, in Rust + WebAssembly.",
     codeRepository: GITHUB,
     programmingLanguage: ["Rust", "TypeScript", "JavaScript"],
     runtimePlatform: ["Browser", "Node.js", "WebAssembly"],
     license: "https://opensource.org/licenses/MIT",
     version: VERSION,
     url: NPM,
-    keywords: "excel, xlsx, xls, xlsb, ods, csv, spreadsheet, parser, reader, webassembly, rust, streaming",
+    keywords: "excel, xlsx, xls, xlsb, ods, csv, spreadsheet, parser, reader, writer, export, webassembly, rust, streaming",
   }}
 >
   <section class="hero gridbg">
@@ -71,11 +74,11 @@ const features = [
     <div class="wrap inner">
       <div class="body">
         <div>
-          <div class="eyebrow">Rust + WebAssembly · read-only</div>
+          <div class="eyebrow">Rust + WebAssembly · read &amp; write</div>
           <h1>Read huge Excel files with <em>10× less memory</em>.</h1>
           <p class="lede">
-            Read a million-row spreadsheet in about 3 seconds, using under 300 MB. Typed cells, streaming rows and progress
-            callbacks, in the browser or Node.
+            Read a million-row spreadsheet in about 3 seconds, using under 300 MB. Write one back, formatted, in about 6.
+            Typed cells, streaming rows and progress callbacks, in the browser or Node.
           </p>
           <div class="ctas">
             <a class="btn primary" href={url("/playground")}>Open the playground →</a>
@@ -150,8 +153,8 @@ const features = [
   <section class="block">
     <div class="wrap">
       <div class="eyebrow">Features</div>
-      <h2>Everything you need to read a spreadsheet.</h2>
-      <p class="sub">Nothing you don't: no writing, no styles, no formula engine. Just fast, correct values.</p>
+      <h2>Everything you need to read and write a spreadsheet.</h2>
+      <p class="sub">Nothing you don't: no formula engine, no macros, no charts. Just fast, correct files.</p>
       <div class="cells">
         {
           features.map((f) => (

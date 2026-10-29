@@ -3,7 +3,7 @@ import Base from "../layouts/Base.astro";
 import BenchChart from "../components/BenchChart.astro";
 import BenchMatrix from "../components/BenchMatrix.astro";
 import BrowserBench from "../playground/BrowserBench";
-import { BUNDLE } from "../data/bench";
+import { BUNDLE, WRITE, formatMb } from "../data/bench";
 import { GITHUB } from "../data/site";
 ---
 
@@ -27,6 +27,28 @@ import { GITHUB } from "../data/site";
 
     <BenchMatrix />
 
+    <h2 id="write">Writing</h2>
+    <p class="sub">Build the same 8-column rows and produce the finished xlsx bytes. Same setup as above.</p>
+    <div class="bundle">
+      <table class="data">
+        <thead><tr><th>Write xlsx</th><th class="r">100k rows</th><th class="r">1M rows</th><th class="r">Peak memory (1M)</th><th class="r">File (1M)</th></tr></thead>
+        <tbody>
+          {WRITE.map((w) => (
+            <tr class:list={{ us: w.ours }}>
+              <td>{w.lib}</td>
+              <td class="r">{w.s[0]} s</td>
+              <td class="r">{w.s[1] === null ? "out of memory" : `${w.s[1]} s`}</td>
+              <td class="r">{w.mb[1] === null ? "—" : formatMb(w.mb[1])}</td>
+              <td class="r">{w.file === null ? "—" : `${w.file} MB`}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        Honest note: exceljs's streaming writer is faster at 1M rows, but uses twice the memory. At 100k rows the two tie.
+      </p>
+    </div>
+
     <div class="bundle">
       <table class="data">
         <thead><tr><th>Browser bundle</th><th class="r">Raw</th><th class="r">Gzip</th></tr></thead>
@@ -35,7 +57,7 @@ import { GITHUB } from "../data/site";
         </tbody>
       </table>
       <p>
-        Honest note: @kuramajs/excel is the largest download gzipped. Most of it is the parsers for five formats plus text-encoding tables that xlsx and ods also need.
+        Honest note: the reader is the largest download gzipped. The writer is a separate import, so apps that only read never load it. Most of it is the parsers for five formats plus text-encoding tables that xlsx and ods also need.
         Load it lazily, or in a worker, so it never blocks your first paint.
       </p>
     </div>
