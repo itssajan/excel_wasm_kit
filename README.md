@@ -10,7 +10,7 @@ Formerly published as `@milojs/excel-kit`.
 - **~3.5× faster than SheetJS** and **2–10× less memory** on large files ([benchmarks](#benchmarks))
 - **Streaming** row readers for files bigger than you want in memory
 - **Typed cells**: numbers, booleans, `Date`s, `null`, and error values, not strings
-- **Writes xlsx** with a streaming writer: 1M rows in about 6 s and 240 MB, with formatting, conditional formats, data validation and tables ([writing](#writing))
+- **Writes xlsx** with a streaming writer: 1M rows in about 3 s and 240 MB, with formatting, conditional formats, data validation and tables ([writing](#writing))
 - Works in browsers, Web Workers and Node.js 20+, with TypeScript types included
 
 The reader returns values, not formulas or styles. The writer is a separate import with its own wasm, so apps that only read don't download it.
@@ -254,12 +254,12 @@ Writing 1M rows × 8 columns to xlsx, same setup:
 
 | Write 1M rows | Time | Peak memory | File |
 |---|---:|---:|---:|
+| **kurama** `XlsxWriter` | **3.2 s** | **239 MB** | **44.2 MB** |
 | exceljs (streaming writer) | 4.4 s | 510 MB | 52.0 MB |
-| **kurama** `XlsxWriter` | 6.1 s | **236 MB** | **44.7 MB** |
 | SheetJS 0.20.3 | 27.1 s | 3.6 GB | 117.4 MB |
 | exceljs 4.4.0 | out of memory | | |
 
-exceljs's streaming writer is faster at 1M rows, but uses twice the memory. At 100k rows the two tie (0.62 s vs 0.63 s; 150 MB vs 87 MB).
+At 100k rows: kurama 0.33 s / 86 MB, exceljs streaming 0.62 s / 150 MB.
 
 In the [playground](https://kuramajs.github.io/excel/playground) (Chromium), @kuramajs/excel opens a 520 MB, 11.5M-row workbook and shows its first sheet in about 6 s.
 

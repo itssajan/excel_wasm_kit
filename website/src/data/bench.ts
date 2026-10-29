@@ -51,7 +51,7 @@ export const SIZES: Size[] = [
 // From bench/write-results.md (`node bench/write.mjs`): write 8 columns to xlsx.
 export type WriteRow = { lib: string; s: [number, number | null]; mb: [number, number | null]; file: number | null; ours?: boolean };
 export const WRITE: WriteRow[] = [
-  { lib: "kurama XlsxWriter", s: [0.63, 6.06], mb: [87, 236], file: 44.7, ours: true },
+  { lib: "kurama XlsxWriter", s: [0.33, 3.24], mb: [86, 239], file: 44.2, ours: true },
   { lib: "exceljs stream", s: [0.62, 4.43], mb: [150, 510], file: 52.0 },
   { lib: "SheetJS 0.20.3", s: [2.03, 27.11], mb: [472, 3557], file: 117.4 },
   { lib: "exceljs 4.4.0", s: [2.7, null], mb: [1245, null], file: null },

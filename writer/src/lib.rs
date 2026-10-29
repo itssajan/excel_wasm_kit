@@ -197,6 +197,38 @@ fn number(n: f64) -> Result<f64, JsValue> {
     }
 }
 
+/// Whole numbers skip float formatting (most cells: ids, counts, dates).
+fn push_number(out: &mut String, n: f64) {
+    if n.fract() == 0.0 && n.abs() < 1e15 {
+        let _ = write!(out, "{}", n as i64);
+    } else {
+        let _ = write!(out, "{n}");
+    }
+}
+
+const EMPTY: u32 = 0;
+const NUMBER: u32 = 1;
+const STRING: u32 = 2;
+const FALSE: u32 = 3;
+const TRUE: u32 = 4;
+const DATE: u32 = 5;
+const OBJECT: u32 = 6;
+
+#[wasm_bindgen(inline_js = "export function cell_kind(v) {
+  switch (typeof v) {
+    case 'number': return 1;
+    case 'string': return 2;
+    case 'boolean': return v ? 4 : 3;
+    case 'undefined': return 0;
+    case 'object': return v === null ? 0 : v instanceof Date ? 5 : 6;
+    default: return 7;
+  }
+}")]
+extern "C" {
+    /// One call instead of a chain of is_null/as_f64/as_string/... checks per cell.
+    fn cell_kind(v: &JsValue) -> u32;
+}
+
 fn get(obj: &JsValue, key: &str) -> JsValue {
     Reflect::get(obj, &key.into()).unwrap_or(JsValue::UNDEFINED)
 }
@@ -215,57 +247,65 @@ fn push_cell(
     v: &JsValue,
     default: Option<u32>,
 ) -> Result<(), JsValue> {
-    if v.is_null() || v.is_undefined() {
+    // Every check is a call into JS, so the type comes from one call (cell_kind) up front
+    let mut kind = cell_kind(v);
+    if kind == EMPTY {
         return Ok(());
     }
     // { value, format }: unwrap; { formula | error, format }: keep the object, take its format
-    // Each check here is a call into JS, so plain numbers and strings skip the object checks.
     let mut format = default;
     let unwrapped;
     let mut v = v;
-    let object = v.is_object();
-    if object && !v.is_instance_of::<Date>() && !Array::is_array(v) {
+    if kind == OBJECT && !Array::is_array(v) {
         if has(v, "format") {
             format = styles.id(&get(v, "format"))?.or(default);
         }
         if has(v, "value") {
             unwrapped = get(v, "value");
             v = &unwrapped;
+            kind = cell_kind(v);
         } else if has(v, "format") && !has(v, "formula") && !has(v, "error") {
-            unwrapped = JsValue::UNDEFINED;
-            v = &unwrapped;
+            kind = EMPTY;
         }
     }
-    let serial = if object {
-        v.dyn_ref::<Date>().map(excel_serial).transpose()?
+    let serial = if kind == DATE {
+        Some(excel_serial(v.unchecked_ref::<Date>())?)
     } else {
         None
     };
-    let kind = match serial {
+    let style = match serial {
         Some(s) if s.fract() == 0.0 => Kind::Date,
         Some(_) => Kind::DateTime,
         None => Kind::Plain,
     };
-    if (v.is_null() || v.is_undefined()) && format.is_none() {
+    if kind == EMPTY && format.is_none() {
         return Ok(());
     }
     out.push_str("<c r=\"");
     push_col(out, col);
     let _ = write!(out, "{row}\"");
-    let xf = styles.xf(format, kind);
+    let xf = styles.xf(format, style);
     if xf != 0 {
         let _ = write!(out, " s=\"{xf}\"");
     }
-    if v.is_null() || v.is_undefined() {
+    if kind == EMPTY {
         out.push_str("/>");
-    } else if let Some(n) = v.as_f64() {
-        let _ = write!(out, "><v>{}</v></c>", number(n)?);
-    } else if let Some(s) = v.as_string() {
-        push_inline_str(out, &s)?;
-    } else if let Some(b) = v.as_bool() {
-        let _ = write!(out, " t=\"b\"><v>{}</v></c>", b as u8);
+    } else if kind == NUMBER {
+        out.push_str("><v>");
+        push_number(out, number(v.as_f64().unwrap_throw())?);
+        out.push_str("</v></c>");
+    } else if kind == STRING {
+        push_inline_str(out, &v.as_string().unwrap_throw())?;
+    } else if kind == FALSE || kind == TRUE {
+        let _ = write!(out, " t=\"b\"><v>{}</v></c>", (kind == TRUE) as u8);
     } else if let Some(serial) = serial {
-        let _ = write!(out, "><v>{serial}</v></c>");
+        out.push_str("><v>");
+        push_number(out, serial);
+        out.push_str("</v></c>");
+    } else if kind != OBJECT {
+        return Err(invalid(
+            "Cells must be string, number, boolean, Date, null, { value, format }, { formula } or { error }",
+        ));
     } else if let Some(f) = get(v, "formula").as_string() {
         let result = get(v, "result");
         let kind = if result.as_string().is_some() {
@@ -989,7 +1029,8 @@ fn table_xml(t: &Table) -> String {
 }
 
 fn opts() -> SimpleFileOptions {
-    SimpleFileOptions::default()
+    // Level 4 is ~35% faster than the default 6 and, on spreadsheet XML, no bigger
+    SimpleFileOptions::default().compression_level(Some(4))
 }
 
 fn zip_error(e: zip::result::ZipError) -> JsValue {
