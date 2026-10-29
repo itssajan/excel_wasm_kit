@@ -335,7 +335,7 @@ pre.astro-code { margin: 0; padding: 20px 22px; font-size: 13.5px; line-height: 
 .drop:focus-within { outline: 2px solid var(--green); outline-offset: 2px; }
 .drop.over { border-color: var(--green); background: var(--green-soft); }
 .drop.big { flex-direction: column; justify-content: center; padding: 28px; text-align: center; }
-.empty { flex: 1; display: grid; place-items: center; padding: 24px; }
+.empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px; }
 .empty .drop.big { max-width: 520px; padding: 48px 32px; gap: 16px; }
 .empty h2 { font-size: 22px; margin: 0 0 6px; color: var(--text); }
 .empty p { margin: 0; }
@@ -387,3 +387,13 @@ pre.astro-code { margin: 0; padding: 20px 22px; font-size: 13.5px; line-height: 
 header.top .actions { display: flex; align-items: center; gap: 8px; }
 .pg-loading h1 { font-size: 24px; margin: 0 0 8px; color: var(--text); }
 .pg-loading p { max-width: 640px; margin: 0 0 8px; }
+/* playground editing */
+.biggrid:focus { outline: none; }
+.biggrid .vrow .fx { color: var(--green); font-family: var(--mono); font-size: 12px; }
+.biggrid .vrow .editing { padding: 0; }
+.biggrid .vrow .editing input { width: 100%; height: 100%; border: 0; padding: 4px 10px; font: inherit; background: var(--surface); color: var(--text); outline: none; }
+.fxbar .vl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fxbar .fmt { display: flex; gap: 6px; padding: 4px 10px; border-left: 1px solid var(--grid); }
+.fxbar .fmt button, .fxbar .fmt select { font: 12px var(--sans, inherit); padding: 2px 8px; border: 1px solid var(--grid-strong); border-radius: 4px; background: var(--surface); color: var(--text); cursor: pointer; }
+.fxbar .fmt button[aria-pressed="true"] { background: var(--green-soft); color: var(--green); border-color: var(--green); }
+.fxbar .fmt :disabled { opacity: .5; cursor: default; }

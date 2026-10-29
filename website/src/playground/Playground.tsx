@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { FileDrop } from "./FileDrop";
-import { PAGE, SheetGrid, type Selection } from "./SheetGrid";
-import { cellKind, columnName, formatBytes, formatCell, formatMs, type CellKind } from "./cells";
-import type { Cell, Progress, SheetInfo, ViewerRequest, ViewerResponse } from "./protocol";
+import { PAGE, SheetGrid, cellAt, inputText, type Selection } from "./SheetGrid";
+import { cellKind, columnName, formatBytes, formatMs, type CellKind } from "./cells";
+import { NUM_FMTS, extent, isFormula, key, parseInput, type BookSheet, type Edit, type Fmt } from "./edits";
+import type { Cell, ExportFormat, Progress, SheetInfo, ViewerRequest, ViewerResponse } from "./protocol";
 
 type Opened = { sheets: SheetInfo[]; size: number; readMs: number; openMs: number };
-type ActiveSheet = { name: string; height: number; width: number; parseMs: number };
+/** The file's sheet loaded in the worker (all zero for a new blank sheet). */
+type Base = { height: number; width: number; parseMs: number };
 type LogEntry = { id: number; call: string; detail: string };
-type Step = "open" | "sheet" | "rows" | null;
+type Step = "open" | "sheet" | "rows" | "export" | null;
 
 const LEGEND: [CellKind, string][] = [
   ["string", "text"],
@@ -17,6 +19,19 @@ const LEGEND: [CellKind, string][] = [
   ["error", "error"],
 ];
 const LOG_MAX = 40;
+const FILLS: [string, string][] = [
+  ["", "No fill"],
+  ["#fff2cc", "Yellow"],
+  ["#e2f0d9", "Green"],
+  ["#ddebf7", "Blue"],
+  ["#fce4d6", "Orange"],
+  ["#f4cccc", "Red"],
+];
+const MIME: Record<ExportFormat, string> = {
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv",
+};
+const BAD_NAME = /[[\]:*?/\\]/;
 
 function progressView(p: Progress): { label: string; value?: number } {
   switch (p.phase) {
@@ -38,15 +53,19 @@ export default function Playground() {
   const logId = useRef(0);
   const [file, setFile] = useState<File | null>(null);
   const [opened, setOpened] = useState<Opened | null>(null);
-  const [active, setActive] = useState<ActiveSheet | null>(null);
+  const nextId = useRef(0);
+  const [book, setBook] = useState<BookSheet[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [base, setBase] = useState<Base | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [pages, setPages] = useState(new Map<number, Cell[][]>());
   const [progress, setProgress] = useState<Progress | null>(null);
   const [memory, setMemory] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<{ sel: Selection; cell: Cell } | null>(null);
+  const [selected, setSelected] = useState<Selection | null>(null);
   const [lastSlice, setLastSlice] = useState<[number, number]>([0, PAGE]);
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
   const [showCode, setShowCode] = useState(() => !matchMedia("(max-width: 760px)").matches);
 
   const addLog = (call: string, detail: string) =>
@@ -65,8 +84,15 @@ export default function Playground() {
           setMemory(data.memory);
           setOpened(data);
           addLog("Workbook.open(bytes)", `${formatMs(data.openMs)} · ${data.sheets.length} sheets`);
-          const first = data.sheets.find((s) => s.visibility === "Visible");
-          if (first) w.postMessage({ type: "sheet", name: first.name } satisfies ViewerRequest);
+          // ponytail: hidden sheets are left out of the editable book (and the export)
+          const sheets = data.sheets
+            .filter((s) => s.visibility === "Visible")
+            .map((s): BookSheet => ({ id: nextId.current++, name: s.name, source: s.name, edits: new Map() }));
+          setBook(sheets);
+          if (sheets[0]) {
+            setActiveId(sheets[0].id);
+            w.postMessage({ type: "sheet", name: sheets[0].name } satisfies ViewerRequest);
+          }
           break;
         }
         case "sheet":
@@ -74,8 +100,7 @@ export default function Playground() {
           setMemory(data.memory);
           requested.current.clear();
           setPages(new Map());
-          setSelected(null);
-          setActive(data);
+          setBase(data);
           addLog(`wb.sheet("${data.name}")`, `${formatMs(data.parseMs)} · ${data.height.toLocaleString()} rows`);
           break;
         case "rows":
@@ -84,16 +109,18 @@ export default function Playground() {
           addLog(`sheet.rowsSlice(${data.start}, ${data.end})`, formatMs(data.ms));
           break;
         case "exported": {
-          setExporting(false);
-          const blob = new Blob([data.bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-          const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${data.name}.xlsx` });
+          setExporting(null);
+          const blob = new Blob([data.bytes as BlobPart], { type: MIME[data.format] });
+          const name = `${fileName.current}.${data.format}`;
+          const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
           a.click();
           URL.revokeObjectURL(a.href);
-          addLog("new XlsxWriter() … save()", `${formatMs(data.ms)} · ${data.rows.toLocaleString()} rows · ${formatBytes(data.bytes.length)}`);
+          setDirty(false);
+          addLog(data.format === "csv" ? "toCsv(rows)" : "new XlsxWriter() … save()", `${formatMs(data.ms)} · ${data.rows.toLocaleString()} rows · ${formatBytes(data.bytes.length)}`);
           break;
         }
         case "error":
-          setExporting(false);
+          setExporting(null);
           setProgress(null);
           setError(data.code ? `${data.code}: ${data.message}` : data.message);
           addLog("throw", data.code ?? "Error");
@@ -104,18 +131,126 @@ export default function Playground() {
     return () => w.terminate();
   }, []);
 
-  function openFile(f: File) {
-    setFile(f);
+  // Edits only live in this tab; warn before they're lost
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    addEventListener("beforeunload", warn);
+    return () => removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const fileName = useRef("workbook");
+  const sheet = book.find((s) => s.id === activeId) ?? null;
+  const discard = () => !dirty || confirm("Discard your edits?");
+
+  function reset() {
     setOpened(null);
-    setActive(null);
+    setBase(null);
+    setBook([]);
+    setActiveId(null);
     setError(null);
     setSelected(null);
+    setDirty(false);
+  }
+
+  function openFile(f: File) {
+    if (!discard()) return;
+    reset();
+    setFile(f);
+    fileName.current = f.name.replace(/\.[^.]+$/, "") || "workbook";
     send({ type: "open", file: f });
   }
 
-  function loadSheet(name: string) {
+  function newWorkbook() {
+    if (!discard()) return;
+    reset();
+    setFile(null);
+    fileName.current = "workbook";
+    const s: BookSheet = { id: nextId.current++, name: "Sheet1", source: null, edits: new Map() };
+    setBook([s]);
+    activate(s);
+  }
+
+  function activate(s: BookSheet) {
     setError(null);
-    send({ type: "sheet", name });
+    setSelected(null);
+    setActiveId(s.id);
+    if (s.source) return send({ type: "sheet", name: s.source });
+    requested.current.clear();
+    setPages(new Map());
+    setBase({ height: 0, width: 0, parseMs: 0 });
+  }
+
+  /** Checks a new sheet name the way Excel does; returns an error message or null. */
+  function nameError(name: string, except?: number): string | null {
+    if (!name.trim() || name.length > 31 || BAD_NAME.test(name) || name.startsWith("'") || name.endsWith("'"))
+      return "Sheet names are 1–31 characters, without [ ] : * ? / \\ or a leading/trailing '";
+    if (book.some((s) => s.id !== except && s.name.toLowerCase() === name.toLowerCase())) return `There's already a sheet named “${name}”`;
+    return null;
+  }
+
+  function addSheet() {
+    let n = book.length + 1;
+    while (book.some((s) => s.name.toLowerCase() === `sheet${n}`)) n++;
+    const s: BookSheet = { id: nextId.current++, name: `Sheet${n}`, source: null, edits: new Map() };
+    setBook((b) => [...b, s]);
+    setDirty(true);
+    activate(s);
+  }
+
+  function renameSheet(s: BookSheet) {
+    const name = prompt("Rename sheet", s.name);
+    if (name === null || name === s.name) return;
+    const err = nameError(name, s.id);
+    if (err) return setError(err);
+    setBook((b) => b.map((x) => (x.id === s.id ? { ...x, name } : x)));
+    setDirty(true);
+  }
+
+  function deleteSheet(s: BookSheet) {
+    if (book.length === 1 || !confirm(`Delete “${s.name}”?`)) return;
+    const i = book.indexOf(s);
+    const rest = book.filter((x) => x !== s);
+    setBook(rest);
+    setDirty(true);
+    if (s.id === activeId) activate(rest[Math.min(i, rest.length - 1)]);
+  }
+
+  /** Updates the active sheet's edit at `sel`. */
+  function change(sel: Selection, patch: (e: Edit) => void) {
+    if (!sheet) return;
+    const k = key(sel.row, sel.col);
+    const edits = new Map(sheet.edits);
+    const e = { ...edits.get(k) };
+    patch(e);
+    // A blank sheet has nothing underneath, so a cleared, unformatted cell needs no edit at all
+    if (e.f && Object.keys(e.f).length === 0) delete e.f;
+    if (!e.f && (!("v" in e) || (e.v === null && !sheet.source))) edits.delete(k);
+    else edits.set(k, e);
+    setBook((b) => b.map((x) => (x.id === sheet.id ? { ...x, edits } : x)));
+    setDirty(true);
+  }
+
+  const onEdit = (sel: Selection, text: string) =>
+    change(sel, (e) => {
+      e.v = parseInput(text);
+    });
+
+  function setFormat(name: keyof Fmt, value: Fmt[keyof Fmt]) {
+    if (!selected) return;
+    change(selected, (e) => {
+      const f: Fmt = { ...e.f, [name]: value };
+      if (!value) delete f[name];
+      e.f = f;
+    });
+  }
+
+  function exportAs(format: ExportFormat) {
+    if (!sheet) return;
+    setError(null);
+    setExporting(format);
+    const sheets = (format === "csv" ? [sheet] : book).map(({ name, source, edits }) => ({ name, source, edits }));
+    send({ type: "export", format, sheets });
   }
 
   const requestPage = useCallback((page: number) => {
@@ -126,10 +261,22 @@ export default function Playground() {
 
   const busy = progress !== null;
   const view = progress && progressView(progress);
-  const visibleSheets = opened?.sheets.filter((s) => s.visibility === "Visible") ?? [];
-  const hidden = (opened?.sheets.length ?? 0) - visibleSheets.length;
-  const step: Step =
-    progress?.phase === "read" || progress?.phase === "open" ? "open" : progress?.phase === "parse" ? "sheet" : active ? "rows" : null;
+  const hidden = opened?.sheets.filter((s) => s.visibility !== "Visible").length ?? 0;
+  const step: Step = exporting
+    ? "export"
+    : progress?.phase === "read" || progress?.phase === "open"
+      ? "open"
+      : progress?.phase === "parse"
+        ? "sheet"
+        : base && sheet?.source
+          ? "rows"
+          : null;
+  // Room to type past the end: 100 blank rows below and at least 26 columns
+  const ext = sheet ? extent(sheet.edits) : { height: 0, width: 0 };
+  const gridHeight = base ? Math.max(base.height, ext.height) + 100 : 0;
+  const gridWidth = base ? Math.max(base.width, ext.width + 1, 26) : 0;
+  const selValue = selected && sheet && base ? cellAt(pages, sheet.edits, base.height, selected.row, selected.col) : undefined;
+  const selFmt = selected && sheet ? sheet.edits.get(key(selected.row, selected.col))?.f : undefined;
 
   return (
     <div className={`pg ${showCode ? "" : "collapsed"}`}>
@@ -141,9 +288,12 @@ export default function Playground() {
                 <b>{file.name}</b> · {formatBytes(file.size)}
               </span>
             ) : (
-              <span>⤒ Drop a file</span>
+              <span>⤒ {book.length ? "Open a file" : "Drop a file"}</span>
             )}
           </FileDrop>
+          <button className="codebtn" disabled={busy} onClick={newWorkbook}>
+            ＋ New
+          </button>
           {opened && (
             <>
               <span className="badge">
@@ -154,13 +304,13 @@ export default function Playground() {
               </span>
             </>
           )}
-          {active && (
+          {base && sheet?.source && (
             <>
               <span className="badge">
-                Parse <b>{formatMs(active.parseMs)}</b>
+                Parse <b>{formatMs(base.parseMs)}</b>
               </span>
               <span className="badge">
-                <b>{active.height.toLocaleString()}</b> × {active.width}
+                <b>{base.height.toLocaleString()}</b> × {base.width}
               </span>
             </>
           )}
@@ -169,18 +319,20 @@ export default function Playground() {
               wasm <b>{formatBytes(memory)}</b>
             </span>
           )}
-          {active && (
-            <button
-              className="codebtn"
-              disabled={busy || exporting}
-              title="Write this sheet to a new .xlsx with @kuramajs/excel/writer"
-              onClick={() => {
-                setExporting(true);
-                send({ type: "export" });
-              }}
-            >
-              {exporting ? "Exporting…" : "⤓ Export xlsx"}
-            </button>
+          {sheet && (
+            <>
+              {(["xlsx", "csv"] as const).map((f) => (
+                <button
+                  key={f}
+                  className="codebtn"
+                  disabled={busy || exporting !== null}
+                  title={f === "csv" ? "Write this sheet to CSV with toCsv()" : "Write every sheet to a new .xlsx with XlsxWriter"}
+                  onClick={() => exportAs(f)}
+                >
+                  {exporting === f ? "Exporting…" : `⤓ ${f}`}
+                </button>
+              ))}
+            </>
           )}
           <button className="codebtn" aria-pressed={showCode} onClick={() => setShowCode((s) => !s)}>
             &lt;/&gt; Code
@@ -208,50 +360,91 @@ export default function Playground() {
           </p>
         )}
 
-        {!file ? (
+        {!file && !book.length ? (
           <div className="empty">
             <FileDrop onFile={openFile} className="big">
               <div>
-                <h2>Drop a spreadsheet to explore it</h2>
+                <h2>Drop a spreadsheet to explore and edit it</h2>
                 <p>xlsx, xlsm, xlsb, xls, ods or csv. It's parsed by WebAssembly in a Web Worker on your machine; nothing is uploaded.</p>
               </div>
             </FileDrop>
+            <button className="codebtn" onClick={newWorkbook}>
+              ＋ Or start a blank workbook
+            </button>
           </div>
         ) : (
           <>
             <div className="fxbar">
-              <span className="nm">{selected ? `${columnName(selected.sel.col)}${selected.sel.row + 1}` : ""}</span>
+              <span className="nm">{selected ? `${columnName(selected.col)}${selected.row + 1}` : ""}</span>
               <span className="fi">fx</span>
               <span className="vl">
-                {selected ? (
+                {selected && selValue !== undefined ? (
                   <>
-                    {formatCell(selected.cell)} <em>· {cellKind(selected.cell)}</em>
+                    {inputText(selValue)} <em>· {isFormula(selValue) ? "formula" : cellKind(selValue as Cell)}</em>
                   </>
                 ) : (
-                  <em>Click a cell to inspect its value</em>
+                  <em>Click a cell, then type to edit. Start with = for a formula.</em>
                 )}
               </span>
+              <span className="fmt" aria-label="Cell format">
+                <button disabled={!selected} aria-pressed={!!selFmt?.bold} title="Bold" onClick={() => setFormat("bold", !selFmt?.bold)}>
+                  <b>B</b>
+                </button>
+                <select disabled={!selected} aria-label="Fill" value={selFmt?.fill ?? ""} onChange={(e) => setFormat("fill", e.target.value)}>
+                  {FILLS.map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <select disabled={!selected} aria-label="Number format" value={selFmt?.numFmt ?? ""} onChange={(e) => setFormat("numFmt", e.target.value)}>
+                  {NUM_FMTS.map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </span>
             </div>
-            {active ? (
+            {base && sheet ? (
               <SheetGrid
-                key={active.name}
-                height={active.height}
-                width={active.width}
+                key={sheet.id}
+                height={gridHeight}
+                width={gridWidth}
+                baseHeight={base.height}
                 pages={pages}
+                edits={sheet.edits}
                 requestPage={requestPage}
-                selected={selected?.sel ?? null}
-                onSelect={(sel, cell) => setSelected({ sel, cell })}
+                selected={selected}
+                onSelect={setSelected}
+                onEdit={onEdit}
               />
             ) : (
               <div className="biggrid" />
             )}
             <nav className="sheettabs" aria-label="Sheets">
-              {visibleSheets.map((s) => (
-                <button key={s.name} className={active?.name === s.name ? "on" : ""} aria-pressed={active?.name === s.name} disabled={busy} onClick={() => loadSheet(s.name)}>
+              {book.map((s) => (
+                <button
+                  key={s.id}
+                  className={s.id === activeId ? "on" : ""}
+                  aria-pressed={s.id === activeId}
+                  disabled={busy}
+                  title="Double-click to rename"
+                  onClick={() => s.id !== activeId && activate(s)}
+                  onDoubleClick={() => renameSheet(s)}
+                >
                   {s.name}
                 </button>
               ))}
-              {hidden > 0 && <span className="hidden">+{hidden} hidden</span>}
+              <button disabled={busy} title="Add a sheet" aria-label="Add a sheet" onClick={addSheet}>
+                ＋
+              </button>
+              {sheet && book.length > 1 && (
+                <button disabled={busy} title={`Delete “${sheet.name}”`} aria-label={`Delete sheet ${sheet.name}`} onClick={() => deleteSheet(sheet)}>
+                  🗑
+                </button>
+              )}
+              {hidden > 0 && <span className="hidden">+{hidden} hidden (not editable or exported)</span>}
             </nav>
           </>
         )}
@@ -292,7 +485,7 @@ export default function Playground() {
             <C>// 2 · parse the selected sheet</C>
           </L>
           <L on={step === "sheet"}>
-            <K>const</K> sheet = wb.<F>sheet</F>(<S>"{active?.name ?? (progress?.phase === "parse" ? progress.name : "Sheet1")}"</S>, {"{"}
+            <K>const</K> sheet = wb.<F>sheet</F>(<S>"{progress?.phase === "parse" ? progress.name : (sheet?.source ?? "Sheet1")}"</S>, {"{"}
           </L>
           <L on={step === "sheet"}>
             {"  "}
@@ -305,6 +498,25 @@ export default function Playground() {
           </L>
           <L on={step === "rows"}>
             sheet.<F>rowsSlice</F>(<P>{lastSlice[0]}</P>, <P>{lastSlice[1]}</P>);
+          </L>
+          <L> </L>
+          <L on={step === "export"}>
+            <C>// 4 · export, with your edits on top</C>
+          </L>
+          <L on={step === "export"}>
+            <K>import</K> {"{ XlsxWriter, toCsv }"} <K>from</K> <S>"@kuramajs/excel/writer"</S>;
+          </L>
+          <L on={step === "export"}>
+            <K>const</K> out = <K>new</K> <F>XlsxWriter</F>();
+          </L>
+          <L on={step === "export"}>
+            <K>const</K> ws = out.<F>addSheet</F>(<S>"{sheet?.name ?? "Sheet1"}"</S>);
+          </L>
+          <L on={step === "export"}>
+            ws.<F>addRow</F>([<P>1</P>, {"{ formula: "}<S>"SUM(A1:A3)"</S>{" }"}, {"{ value, format }"}]);
+          </L>
+          <L on={step === "export"}>
+            out.<F>save</F>(); <C>// or toCsv(rows)</C>
           </L>
         </pre>
         <div className="log" aria-label="Call log">
