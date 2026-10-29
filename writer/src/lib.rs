@@ -10,12 +10,67 @@ use js_sys::{Array, Date, Object, Reflect};
 use wasm_bindgen::prelude::*;
 use zip::{write::SimpleFileOptions, ZipWriter};
 
+mod styles;
+use styles::{Kind, Styles};
+
 #[wasm_bindgen(typescript_custom_section)]
-const TS_TYPES: &str = r#"
+const TS_TYPES: &str = r##"
+export type WriteValue = string | number | boolean | Date | null | undefined;
+declare const formatBrand: unique symbol;
+/** A cell format, made by `XlsxWriter.format()`. Only valid on the writer that made it. */
+export type Format = number & { readonly [formatBrand]: true };
 export type WriteCell =
-  | string | number | boolean | Date | null | undefined
-  | { formula: string; result?: string | number | boolean }
-  | { error: string };
+  | WriteValue
+  | { value: WriteValue; format?: Format }
+  | { value?: WriteValue; format: Format }
+  | { formula: string; result?: string | number | boolean; format?: Format }
+  | { error: string; format?: Format };
+export type BorderStyle =
+  | "thin" | "medium" | "thick" | "dashed" | "dotted" | "double" | "hair" | "mediumDashed"
+  | "dashDot" | "mediumDashDot" | "dashDotDot" | "mediumDashDotDot" | "slantDashDot";
+export interface FormatSpec {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  /** Font name. Default Calibri. */
+  font?: string;
+  /** Font size in points. Default 11. */
+  size?: number;
+  /** Font color, like "#1f6feb". */
+  color?: string;
+  /** Background color, like "#e8f5e9". */
+  fill?: string;
+  /** One style for all four sides, or per side. */
+  border?: BorderStyle | { top?: BorderStyle; bottom?: BorderStyle; left?: BorderStyle; right?: BorderStyle };
+  borderColor?: string;
+  align?: "left" | "center" | "right" | "fill" | "justify" | "centerContinuous" | "distributed";
+  valign?: "top" | "center" | "bottom" | "justify" | "distributed";
+  wrap?: boolean;
+  /** Excel number format code, like "#,##0.00", "0%" or "dd/mm/yyyy". */
+  numFmt?: string;
+}
+export interface ColumnOptions {
+  /** Width in characters. */
+  width?: number;
+  /** Format for this column's cells that don't set their own (row formats win over it). */
+  format?: Format;
+  hidden?: boolean;
+}
+export interface SheetOptions {
+  /** Per column, from A. Use `null` to skip a column. */
+  columns?: (ColumnOptions | null | undefined)[];
+  /** Keep the top rows and/or left columns visible while scrolling. */
+  freeze?: { rows?: number; cols?: number };
+  /** `true` filters the written range (header in the first row), or give a range like "A1:D1". */
+  autofilter?: boolean | string;
+}
+export interface RowOptions {
+  /** Format for this row's cells that don't set their own. */
+  format?: Format;
+  /** Row height in points. */
+  height?: number;
+}
 export type WriteRow = WriteCell[] | Record<string, WriteCell>;
 export interface CsvOptions {
   /** Field separator. Default `,`. */
@@ -26,7 +81,7 @@ export interface CsvOptions {
   bom?: boolean;
 }
 export type WriterErrorCode = "INVALID_INPUT" | "CLOSED";
-"#;
+"##;
 
 fn error(code: &str, message: &str) -> JsValue {
     let err = js_sys::Error::new(message);
@@ -42,13 +97,8 @@ const MAX_ROWS: u32 = 1_048_576;
 const MAX_COLS: usize = 16_384;
 const MAX_STRING: usize = 32_767;
 
-// cellXfs indexes in STYLES
-const XF_DATE: u8 = 1;
-const XF_DATETIME: u8 = 2;
-
 const XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#;
 const NS: &str = "http://schemas.openxmlformats.org";
-const STYLES: &str = r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="164" formatCode="yyyy\-mm\-dd"/><numFmt numFmtId="165" formatCode="yyyy\-mm\-dd\ hh:mm:ss"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/><xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>"#;
 
 /// Column index (0-based) to letters: 0 -> A, 26 -> AA.
 fn push_col(out: &mut String, mut c: usize) {
@@ -116,28 +166,71 @@ fn get(obj: &JsValue, key: &str) -> JsValue {
     Reflect::get(obj, &key.into()).unwrap_or(JsValue::UNDEFINED)
 }
 
-/// Append one `<c>` for `v` at (`row`, `col`). Empty cells write nothing.
-fn push_cell(out: &mut String, row: u32, col: usize, v: &JsValue) -> Result<(), JsValue> {
+fn has(obj: &JsValue, key: &str) -> bool {
+    Reflect::has(obj, &key.into()).unwrap_or(false)
+}
+
+/// Append one `<c>` for `v` at (`row`, `col`). `default` is the row or column format, used when
+/// the cell sets none. Empty cells write nothing unless they carry a format.
+fn push_cell(
+    out: &mut String,
+    styles: &mut Styles,
+    row: u32,
+    col: usize,
+    v: &JsValue,
+    default: Option<u32>,
+) -> Result<(), JsValue> {
     if v.is_null() || v.is_undefined() {
+        return Ok(());
+    }
+    // { value, format }: unwrap; { formula | error, format }: keep the object, take its format
+    // Each check here is a call into JS, so plain numbers and strings skip the object checks.
+    let mut format = default;
+    let unwrapped;
+    let mut v = v;
+    let object = v.is_object();
+    if object && !v.is_instance_of::<Date>() && !Array::is_array(v) {
+        if has(v, "format") {
+            format = styles.id(&get(v, "format"))?.or(default);
+        }
+        if has(v, "value") {
+            unwrapped = get(v, "value");
+            v = &unwrapped;
+        } else if has(v, "format") && !has(v, "formula") && !has(v, "error") {
+            unwrapped = JsValue::UNDEFINED;
+            v = &unwrapped;
+        }
+    }
+    let serial = if object {
+        v.dyn_ref::<Date>().map(excel_serial).transpose()?
+    } else {
+        None
+    };
+    let kind = match serial {
+        Some(s) if s.fract() == 0.0 => Kind::Date,
+        Some(_) => Kind::DateTime,
+        None => Kind::Plain,
+    };
+    if (v.is_null() || v.is_undefined()) && format.is_none() {
         return Ok(());
     }
     out.push_str("<c r=\"");
     push_col(out, col);
     let _ = write!(out, "{row}\"");
-    if let Some(n) = v.as_f64() {
+    let xf = styles.xf(format, kind);
+    if xf != 0 {
+        let _ = write!(out, " s=\"{xf}\"");
+    }
+    if v.is_null() || v.is_undefined() {
+        out.push_str("/>");
+    } else if let Some(n) = v.as_f64() {
         let _ = write!(out, "><v>{}</v></c>", number(n)?);
     } else if let Some(s) = v.as_string() {
         push_inline_str(out, &s)?;
     } else if let Some(b) = v.as_bool() {
         let _ = write!(out, " t=\"b\"><v>{}</v></c>", b as u8);
-    } else if let Some(d) = v.dyn_ref::<Date>() {
-        let serial = excel_serial(d)?;
-        let xf = if serial.fract() == 0.0 {
-            XF_DATE
-        } else {
-            XF_DATETIME
-        };
-        let _ = write!(out, " s=\"{xf}\"><v>{serial}</v></c>");
+    } else if let Some(serial) = serial {
+        let _ = write!(out, "><v>{serial}</v></c>");
     } else if let Some(f) = get(v, "formula").as_string() {
         let result = get(v, "result");
         let kind = if result.as_string().is_some() {
@@ -167,7 +260,7 @@ fn push_cell(out: &mut String, row: u32, col: usize, v: &JsValue) -> Result<(), 
         out.push_str("</v></c>");
     } else {
         return Err(invalid(
-            "Cells must be string, number, boolean, Date, null, { formula } or { error }",
+            "Cells must be string, number, boolean, Date, null, { value, format }, { formula } or { error }",
         ));
     }
     Ok(())
@@ -207,12 +300,116 @@ fn check_sheet_name(name: &str, taken: &[String]) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// "B3" -> (row 2, col 1), 0-based.
+fn parse_ref(s: &str) -> Option<(u32, usize)> {
+    let split = s.find(|c: char| c.is_ascii_digit())?;
+    let (letters, digits) = s.split_at(split);
+    if letters.is_empty() || letters.len() > 3 || !letters.bytes().all(|b| b.is_ascii_uppercase()) {
+        return None;
+    }
+    let col = letters
+        .bytes()
+        .fold(0usize, |n, b| n * 26 + (b - b'A' + 1) as usize)
+        - 1;
+    let row: u32 = digits.parse().ok()?;
+    (!digits.starts_with('0') && (1..=MAX_ROWS).contains(&row) && col < MAX_COLS)
+        .then_some((row - 1, col))
+}
+
+/// A cell range, 0-based and inclusive, top-left first.
+#[derive(Clone, Copy)]
+struct Area {
+    r1: u32,
+    c1: usize,
+    r2: u32,
+    c2: usize,
+}
+
+impl Area {
+    /// "A1:C3" (or one cell "B2"), any corner order.
+    fn parse(s: &str) -> Result<Area, JsValue> {
+        let bad = || invalid(&format!("'{s}' is not a range like \"A1:C3\""));
+        let (a, b) = s.split_once(':').unwrap_or((s, s));
+        let (ra, ca) = parse_ref(a).ok_or_else(bad)?;
+        let (rb, cb) = parse_ref(b).ok_or_else(bad)?;
+        Ok(Area {
+            r1: ra.min(rb),
+            c1: ca.min(cb),
+            r2: ra.max(rb),
+            c2: ca.max(cb),
+        })
+    }
+
+    fn overlaps(&self, o: &Area) -> bool {
+        self.r1 <= o.r2 && o.r1 <= self.r2 && self.c1 <= o.c2 && o.c1 <= self.c2
+    }
+
+    /// "A1:C3", or "$A$1:$C$3" with `abs`.
+    fn push(&self, out: &mut String, abs: bool) {
+        let d = if abs { "$" } else { "" };
+        for (i, (r, c)) in [(self.r1, self.c1), (self.r2, self.c2)]
+            .into_iter()
+            .enumerate()
+        {
+            if i == 1 {
+                out.push(':');
+            }
+            out.push_str(d);
+            push_col(out, c);
+            let _ = write!(out, "{d}{}", r + 1);
+        }
+    }
+}
+
+fn non_negative(v: &JsValue, what: &str, max: f64) -> Result<Option<f64>, JsValue> {
+    if v.is_undefined() || v.is_null() {
+        return Ok(None);
+    }
+    match v.as_f64() {
+        Some(n) if (0.0..=max).contains(&n) => Ok(Some(n)),
+        _ => Err(invalid(&format!("{what} must be a number from 0 to {max}"))),
+    }
+}
+
+fn check_keys(obj: &JsValue, what: &str, allowed: &[&str]) -> Result<(), JsValue> {
+    for k in Object::keys(obj.unchecked_ref::<Object>()).iter() {
+        let k = k.as_string().unwrap_throw();
+        if !allowed.contains(&k.as_str()) {
+            return Err(invalid(&format!(
+                "Unknown {what} option '{k}' (expected {})",
+                allowed.join(", ")
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Autofilter for a sheet: the written range (`true`) or a fixed one.
+enum Filter {
+    Written,
+    Range(Area),
+}
+
+/// The sheet currently being written.
+#[derive(Default)]
+struct Sheet {
+    rows: u32,
+    /// Widest row so far (columns)
+    width: usize,
+    columns: Vec<Option<u32>>,
+    merges: Vec<Area>,
+    filter: Option<Filter>,
+}
+
 struct Inner {
     /// `None` once saved
     zip: Option<ZipWriter<Cursor<Vec<u8>>>>,
     sheets: Vec<String>,
-    /// Rows written to the open sheet (the last in `sheets`)
-    rows: u32,
+    /// The open sheet (the last in `sheets`)
+    sheet: Sheet,
+    /// (sheet index, range) of each autofilter, for workbook.xml's _FilterDatabase names
+    filters: Vec<(usize, Area)>,
+    styles: Styles,
     buf: String,
 }
 
@@ -223,78 +420,252 @@ impl Inner {
             .ok_or_else(|| error("CLOSED", "The workbook was already saved"))
     }
 
-    fn add_sheet(&mut self, name: &str) -> Result<usize, JsValue> {
+    fn add_sheet(&mut self, name: &str, options: &JsValue) -> Result<usize, JsValue> {
         self.zip()?;
         check_sheet_name(name, &self.sheets)?;
+        // Everything before <sheetData> has to be known now: parse options before writing anything.
+        let mut head = format!("{XML}<worksheet xmlns=\"{NS}/spreadsheetml/2006/main\">");
+        let mut sheet = Sheet::default();
+        if !options.is_undefined() && !options.is_null() {
+            check_keys(options, "sheet", &["columns", "freeze", "autofilter"])?;
+            self.push_freeze(&mut head, &get(options, "freeze"))?;
+            self.push_columns(&mut head, &get(options, "columns"), &mut sheet)?;
+            let filter = get(options, "autofilter");
+            sheet.filter = match filter.as_bool() {
+                Some(true) => Some(Filter::Written),
+                Some(false) => None,
+                None if filter.is_undefined() => None,
+                None => match filter.as_string() {
+                    Some(r) => Some(Filter::Range(Area::parse(&r)?)),
+                    None => {
+                        return Err(invalid("autofilter must be true or a range like \"A1:D1\""))
+                    }
+                },
+            };
+        }
+        head.push_str("<sheetData>");
+
         self.close_sheet()?;
         let n = self.sheets.len() + 1;
         let zip = self.zip()?;
         zip.start_file(format!("xl/worksheets/sheet{n}.xml"), opts())
             .map_err(zip_error)?;
-        write!(
-            zip,
-            "{XML}<worksheet xmlns=\"{NS}/spreadsheetml/2006/main\"><sheetData>"
-        )
-        .map_err(io_error)?;
+        zip.write_all(head.as_bytes()).map_err(io_error)?;
         self.sheets.push(name.to_owned());
-        self.rows = 0;
+        self.sheet = sheet;
         Ok(n - 1)
     }
 
-    fn close_sheet(&mut self) -> Result<(), JsValue> {
-        if !self.sheets.is_empty() {
-            self.zip()?
-                .write_all(b"</sheetData></worksheet>")
-                .map_err(io_error)?;
+    fn push_freeze(&self, out: &mut String, freeze: &JsValue) -> Result<(), JsValue> {
+        if freeze.is_undefined() || freeze.is_null() {
+            return Ok(());
+        }
+        if !freeze.is_object() {
+            return Err(invalid("freeze must be { rows, cols }"));
+        }
+        check_keys(freeze, "freeze", &["rows", "cols"])?;
+        let count = |key, max: u32| -> Result<u32, JsValue> {
+            match non_negative(
+                &get(freeze, key),
+                &format!("freeze.{key}"),
+                (max - 1) as f64,
+            )? {
+                Some(n) if n.fract() == 0.0 => Ok(n as u32),
+                None => Ok(0),
+                Some(_) => Err(invalid(&format!("freeze.{key} must be a whole number"))),
+            }
+        };
+        let (rows, cols) = (count("rows", MAX_ROWS)?, count("cols", MAX_COLS as u32)?);
+        if rows == 0 && cols == 0 {
+            return Ok(());
+        }
+        let pane = match (rows > 0, cols > 0) {
+            (true, true) => "bottomRight",
+            (true, false) => "bottomLeft",
+            _ => "topRight",
+        };
+        out.push_str("<sheetViews><sheetView workbookViewId=\"0\"><pane");
+        if cols > 0 {
+            let _ = write!(out, " xSplit=\"{cols}\"");
+        }
+        if rows > 0 {
+            let _ = write!(out, " ySplit=\"{rows}\"");
+        }
+        out.push_str(" topLeftCell=\"");
+        push_col(out, cols as usize);
+        let _ = write!(out, "{}\" activePane=\"{pane}\" state=\"frozen\"/><selection pane=\"{pane}\"/></sheetView></sheetViews>", rows + 1);
+        Ok(())
+    }
+
+    fn push_columns(
+        &mut self,
+        out: &mut String,
+        columns: &JsValue,
+        sheet: &mut Sheet,
+    ) -> Result<(), JsValue> {
+        if columns.is_undefined() || columns.is_null() {
+            return Ok(());
+        }
+        let columns: &Array = columns
+            .dyn_ref()
+            .ok_or_else(|| invalid("columns must be an array"))?;
+        if columns.length() as usize > MAX_COLS {
+            return Err(invalid("xlsx sheets are limited to 16,384 columns"));
+        }
+        let mut cols = String::new();
+        for (i, c) in columns.iter().enumerate() {
+            if c.is_undefined() || c.is_null() {
+                sheet.columns.push(None);
+                continue;
+            }
+            if !c.is_object() {
+                return Err(invalid(
+                    "Each column must be { width, format, hidden } or null",
+                ));
+            }
+            check_keys(&c, "column", &["width", "format", "hidden"])?;
+            let width = non_negative(&get(&c, "width"), "width", 255.0)?;
+            let format = self.styles.id(&get(&c, "format"))?;
+            let hidden = get(&c, "hidden").as_bool() == Some(true);
+            sheet.columns.push(format);
+            if width.is_none() && format.is_none() && !hidden {
+                continue;
+            }
+            let _ = write!(cols, "<col min=\"{0}\" max=\"{0}\"", i + 1);
+            // Excel needs a width on every <col>; 8.43 is its default
+            let _ = write!(cols, " width=\"{}\"", width.unwrap_or(8.43));
+            if width.is_some() {
+                cols.push_str(" customWidth=\"1\"");
+            }
+            if let Some(f) = format {
+                let _ = write!(cols, " style=\"{}\"", self.styles.xf(Some(f), Kind::Plain));
+            }
+            if hidden {
+                cols.push_str(" hidden=\"1\"");
+            }
+            cols.push_str("/>");
+        }
+        if !cols.is_empty() {
+            let _ = write!(out, "<cols>{cols}</cols>");
         }
         Ok(())
     }
 
-    fn add_row(&mut self, sheet: usize, row: &Array) -> Result<(), JsValue> {
+    fn close_sheet(&mut self) -> Result<(), JsValue> {
+        if self.sheets.is_empty() {
+            return Ok(());
+        }
+        let sheet = std::mem::take(&mut self.sheet);
+        let mut tail = String::from("</sheetData>");
+        let filter = match sheet.filter {
+            Some(Filter::Range(a)) => Some(a),
+            Some(Filter::Written) if sheet.rows > 0 && sheet.width > 0 => Some(Area {
+                r1: 0,
+                c1: 0,
+                r2: sheet.rows - 1,
+                c2: sheet.width - 1,
+            }),
+            _ => None,
+        };
+        if let Some(a) = filter {
+            tail.push_str("<autoFilter ref=\"");
+            a.push(&mut tail, false);
+            tail.push_str("\"/>");
+            self.filters.push((self.sheets.len() - 1, a));
+        }
+        if !sheet.merges.is_empty() {
+            let _ = write!(tail, "<mergeCells count=\"{}\">", sheet.merges.len());
+            for m in &sheet.merges {
+                tail.push_str("<mergeCell ref=\"");
+                m.push(&mut tail, false);
+                tail.push_str("\"/>");
+            }
+            tail.push_str("</mergeCells>");
+        }
+        tail.push_str("</worksheet>");
+        self.zip()?.write_all(tail.as_bytes()).map_err(io_error)
+    }
+
+    fn open_sheet(&mut self, sheet: usize) -> Result<(), JsValue> {
         self.zip()?;
         if sheet + 1 != self.sheets.len() {
             return Err(error(
                 "CLOSED",
                 &format!(
-                    "Sheet '{}' is finished: rows can only go to the last added sheet",
+                    "Sheet '{}' is finished: only the last added sheet can change",
                     self.sheets[sheet]
                 ),
             ));
         }
-        if self.rows == MAX_ROWS {
+        Ok(())
+    }
+
+    fn merge(&mut self, sheet: usize, range: &str) -> Result<(), JsValue> {
+        self.open_sheet(sheet)?;
+        let area = Area::parse(range)?;
+        if area.r1 == area.r2 && area.c1 == area.c2 {
+            return Err(invalid("A merge needs at least two cells"));
+        }
+        // ponytail: O(n) per merge, O(n²) per sheet; fine for hand-made reports, index if someone merges 100k ranges
+        if self.sheet.merges.iter().any(|m| m.overlaps(&area)) {
+            return Err(invalid(&format!("'{range}' overlaps another merged range")));
+        }
+        self.sheet.merges.push(area);
+        Ok(())
+    }
+
+    fn add_row(&mut self, sheet: usize, row: &Array, options: &JsValue) -> Result<(), JsValue> {
+        self.open_sheet(sheet)?;
+        // a Format, or { format, height }
+        let (format, height) = if options.is_object() {
+            check_keys(options, "row", &["format", "height"])?;
+            (
+                self.styles.id(&get(options, "format"))?,
+                non_negative(&get(options, "height"), "height", 409.0)?,
+            )
+        } else {
+            (self.styles.id(options)?, None)
+        };
+        if self.sheet.rows == MAX_ROWS {
             return Err(invalid("xlsx sheets are limited to 1,048,576 rows"));
         }
         if row.length() as usize > MAX_COLS {
             return Err(invalid("xlsx rows are limited to 16,384 columns"));
         }
-        let r = self.rows + 1;
+        let r = self.sheet.rows + 1;
         // Build the whole row first, so a bad cell throws without leaving half a row in the file.
         let mut buf = std::mem::take(&mut self.buf);
         buf.clear();
-        let _ = write!(buf, "<row r=\"{r}\">");
-        let built = row
-            .iter()
-            .enumerate()
-            .try_for_each(|(c, v)| push_cell(&mut buf, r, c, &v));
+        let _ = write!(buf, "<row r=\"{r}\"");
+        if let Some(h) = height {
+            let _ = write!(buf, " ht=\"{h}\" customHeight=\"1\"");
+        }
+        buf.push('>');
+        let (styles, columns) = (&mut self.styles, &self.sheet.columns);
+        let built = row.iter().enumerate().try_for_each(|(c, v)| {
+            let default = format.or_else(|| columns.get(c).copied().flatten());
+            push_cell(&mut buf, styles, r, c, &v, default)
+        });
         buf.push_str("</row>");
         let written = built.and_then(|()| self.zip()?.write_all(buf.as_bytes()).map_err(io_error));
         self.buf = buf;
         written?;
-        self.rows = r;
+        self.sheet.rows = r;
+        self.sheet.width = self.sheet.width.max(row.length() as usize);
         Ok(())
     }
 
     fn save(&mut self) -> Result<Vec<u8>, JsValue> {
         self.zip()?;
         if self.sheets.is_empty() {
-            self.add_sheet("Sheet1")?;
+            self.add_sheet("Sheet1", &JsValue::UNDEFINED)?;
         }
         self.close_sheet()?;
         let mut zip = self.zip.take().unwrap_throw();
         let sheets = &self.sheets;
 
         let mut types = format!("{XML}<Types xmlns=\"{NS}/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>");
-        let mut book = format!("{XML}<workbook xmlns=\"{NS}/spreadsheetml/2006/main\" xmlns:r=\"{NS}/officeDocument/2006/relationships\"><sheets>");
+        let mut book = format!("{XML}<workbook xmlns=\"{NS}/spreadsheetml/2006/main\" xmlns:r=\"{NS}/officeDocument/2006/relationships\"><bookViews><workbookView/></bookViews><sheets>");
         let mut rels = format!("{XML}<Relationships xmlns=\"{NS}/package/2006/relationships\">");
         for (i, name) in sheets.iter().enumerate() {
             let n = i + 1;
@@ -306,10 +677,23 @@ impl Inner {
         }
         types.push_str("</Types>");
         // fullCalcOnLoad: formulas written without a cached result get computed when Excel opens the file
-        book.push_str("</sheets><calcPr calcId=\"0\" fullCalcOnLoad=\"1\"/></workbook>");
+        book.push_str("</sheets>");
+        // Excel expects a hidden _FilterDatabase name for each autofilter
+        if !self.filters.is_empty() {
+            book.push_str("<definedNames>");
+            for (i, area) in &self.filters {
+                let _ = write!(book, "<definedName name=\"_xlnm._FilterDatabase\" localSheetId=\"{i}\" hidden=\"1\">'");
+                push_escaped(&mut book, &sheets[*i].replace('\'', "''"));
+                book.push_str("'!");
+                area.push(&mut book, true);
+                book.push_str("</definedName>");
+            }
+            book.push_str("</definedNames>");
+        }
+        book.push_str("<calcPr calcId=\"0\" fullCalcOnLoad=\"1\"/></workbook>");
         let _ = write!(rels, "<Relationship Id=\"rId{}\" Type=\"{NS}/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>", sheets.len() + 1);
         let root_rels = format!("{XML}<Relationships xmlns=\"{NS}/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"{NS}/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>");
-        let styles = format!("{XML}{STYLES}");
+        let styles = format!("{XML}{}", self.styles.xml());
 
         for (name, body) in [
             ("[Content_Types].xml", &types),
@@ -353,16 +737,32 @@ impl XlsxWriter {
             inner: Rc::new(RefCell::new(Inner {
                 zip: Some(ZipWriter::new(Cursor::new(Vec::new()))),
                 sheets: Vec::new(),
-                rows: 0,
+                sheet: Sheet::default(),
+                filters: Vec::new(),
+                styles: Styles::new(),
                 buf: String::new(),
             })),
         }
     }
 
+    /// Make a cell format to use in cells (`{ value, format }`), rows and columns.
+    #[wasm_bindgen(unchecked_return_type = "Format")]
+    pub fn format(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "FormatSpec")] spec: Object,
+    ) -> Result<u32, JsValue> {
+        self.inner.borrow_mut().styles.add(&spec)
+    }
+
     /// Start a new sheet. The previous sheet is finished and takes no more rows.
+    /// Column widths and frozen panes come first in the file, so they are set here.
     #[wasm_bindgen(js_name = addSheet)]
-    pub fn add_sheet(&self, name: &str) -> Result<SheetWriter, JsValue> {
-        let index = self.inner.borrow_mut().add_sheet(name)?;
+    pub fn add_sheet(
+        &self,
+        name: &str,
+        #[wasm_bindgen(unchecked_optional_param_type = "SheetOptions")] options: JsValue,
+    ) -> Result<SheetWriter, JsValue> {
+        let index = self.inner.borrow_mut().add_sheet(name, &options)?;
         Ok(SheetWriter {
             inner: self.inner.clone(),
             index,
@@ -384,13 +784,20 @@ pub struct SheetWriter {
 
 #[wasm_bindgen]
 impl SheetWriter {
-    /// Append a row. `null`/`undefined` leave a cell empty.
+    /// Append a row. `null`/`undefined` leave a cell empty. Pass a `Format` (or `{ format, height }`)
+    /// to style every cell in the row that doesn't set its own format.
     #[wasm_bindgen(js_name = addRow)]
     pub fn add_row(
         &self,
         #[wasm_bindgen(unchecked_param_type = "WriteCell[]")] row: Array,
+        #[wasm_bindgen(unchecked_optional_param_type = "Format | RowOptions")] options: JsValue,
     ) -> Result<(), JsValue> {
-        self.inner.borrow_mut().add_row(self.index, &row)
+        self.inner.borrow_mut().add_row(self.index, &row, &options)
+    }
+
+    /// Merge a range like "A1:C1". Write the value into its top-left cell as usual.
+    pub fn merge(&self, range: &str) -> Result<(), JsValue> {
+        self.inner.borrow_mut().merge(self.index, range)
     }
 }
 
@@ -450,9 +857,9 @@ pub fn write_xlsx(
             .get(1)
             .dyn_into()
             .map_err(|_| invalid(&format!("Sheet '{name}' must be an array of rows")))?;
-        let ws = wb.add_sheet(&name)?;
+        let ws = wb.add_sheet(&name, JsValue::UNDEFINED)?;
         for row in normalize(&rows)? {
-            ws.add_row(row)?;
+            ws.add_row(row, JsValue::UNDEFINED)?;
         }
     }
     wb.save()
@@ -478,6 +885,9 @@ fn csv_field(v: &JsValue, escape_formulas: bool) -> String {
         };
     }
     if v.is_object() && !Array::is_array(v) {
+        if has(v, "value") || has(v, "format") {
+            return csv_field(&get(v, "value"), escape_formulas);
+        }
         let result = get(v, "result");
         let value = if result.is_undefined() {
             get(v, "error")

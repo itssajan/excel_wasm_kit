@@ -16,3 +16,8 @@ out.addSheet("Data").addRow(cells);
 export const xlsx: Uint8Array = out.save();
 export const quick: Uint8Array = writeXlsx({ People: [{ id: 1, name: "Ann" }] });
 export const csv: string = toCsv([["a", 1]], { delimiter: ";", escapeFormulas: true, bom: true });
+const head = out.format({ bold: true, fill: "#e8f5e9", border: { bottom: "thin" }, align: "center" });
+const sheet2 = new XlsxWriter().addSheet("R", { columns: [{ width: 12, format: head }, null], freeze: { rows: 1 }, autofilter: true });
+sheet2.addRow([{ value: "x", format: head }, { format: head }, { formula: "A1", format: head }], head);
+sheet2.addRow([1], { format: head, height: 20 });
+sheet2.merge("A1:B1");
