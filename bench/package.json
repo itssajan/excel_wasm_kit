@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench": "node run.mjs"
+    "bench": "node run.mjs",
+    "bench:write": "node write.mjs"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

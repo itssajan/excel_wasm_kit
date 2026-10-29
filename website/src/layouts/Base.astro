@@ -14,7 +14,7 @@ interface Props {
 }
 const {
   title,
-  description = "Fast, low-memory Excel reader for browsers and Node.js, in Rust + WebAssembly.",
+  description = "Fast, low-memory Excel reader and writer for browsers and Node.js, in Rust + WebAssembly.",
   app = false,
   noindex = false,
   jsonLd,
@@ -29,7 +29,7 @@ const structuredData = [
     name: "@kuramajs/excel",
     alternateName: "Kurama Excel",
     url: new URL(url("/"), Astro.site),
-    description: "Fast, low-memory Excel reader for browsers and Node.js, in Rust + WebAssembly.",
+    description: "Fast, low-memory Excel reader and writer for browsers and Node.js, in Rust + WebAssembly.",
   },
   ...(jsonLd ? [jsonLd] : []),
 ];

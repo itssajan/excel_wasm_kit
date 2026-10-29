@@ -1,13 +1,17 @@
 [package]
 name = "kurama-excel"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
-description = "Fast, low-memory Excel reader for browsers and Node, in WebAssembly"
+description = "Fast, low-memory Excel reader and writer for browsers and Node, in WebAssembly"
 license = "MIT"
 repository = "https://github.com/kuramajs/excel"
 
 [lib]
 crate-type = ["cdylib"]
+
+# The writer is its own wasm (writer/), so readers don't download it.
+[workspace]
+members = ["writer"]
 
 
 [dependencies]
