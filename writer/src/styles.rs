@@ -81,6 +81,9 @@ impl Interner {
 /// One `format({...})`, as the XML pieces it contributes.
 struct Format {
     font: String,
+    /// For conditional formats (dxf): only what the spec sets, and fills use bgColor
+    dxf_font: Option<String>,
+    dxf_fill: Option<String>,
     fill: Option<String>,
     border: Option<String>,
     num_fmt: Option<String>,
@@ -95,6 +98,7 @@ pub struct Styles {
     num_fmts: Interner,
     xfs: Interner,
     cache: HashMap<(Option<u32>, Kind), u32>,
+    dxfs: Interner,
 }
 
 fn get(o: &JsValue, key: &str) -> JsValue {
@@ -187,7 +191,9 @@ fn parse(spec: &Object) -> Result<Format, JsValue> {
     }
     let spec: &JsValue = spec.as_ref();
 
+    // `font` is the full font for cell styles; `dfont` only what the spec sets (dxf)
     let mut font = String::from("<font>");
+    let mut dfont = String::new();
     for (key, tag) in [
         ("bold", "b"),
         ("italic", "i"),
@@ -196,33 +202,44 @@ fn parse(spec: &Object) -> Result<Format, JsValue> {
     ] {
         if flag(spec, key)? {
             let _ = write!(font, "<{tag}/>");
+            let _ = write!(dfont, "<{tag}/>");
         }
     }
     let size = get(spec, "size");
     let size = match size.as_f64() {
-        Some(n) if (1.0..=409.0).contains(&n) => n,
+        Some(n) if (1.0..=409.0).contains(&n) => {
+            let _ = write!(dfont, "<sz val=\"{n}\"/>");
+            n
+        }
         None if size.is_undefined() => 11.0,
         _ => return Err(invalid("size must be a number from 1 to 409")),
     };
     let _ = write!(font, "<sz val=\"{size}\"/>");
     if let Some(c) = color(&get(spec, "color"), "color")? {
         let _ = write!(font, "<color rgb=\"{c}\"/>");
+        let _ = write!(dfont, "<color rgb=\"{c}\"/>");
     }
     let name = get(spec, "font");
     match name.as_string() {
         Some(n) if !n.is_empty() && n.chars().count() <= 31 => {
-            font.push_str("<name val=\"");
-            push_escaped(&mut font, &n);
-            font.push_str("\"/>");
+            let mut tag = String::from("<name val=\"");
+            push_escaped(&mut tag, &n);
+            tag.push_str("\"/>");
+            font.push_str(&tag);
+            dfont.push_str(&tag);
         }
         None if name.is_undefined() => font.push_str("<name val=\"Calibri\"/><family val=\"2\"/>"),
         _ => return Err(invalid("font must be a font name, up to 31 characters")),
     }
     font.push_str("</font>");
+    let dxf_font = (!dfont.is_empty()).then(|| format!("<font>{dfont}</font>"));
 
-    let fill = color(&get(spec, "fill"), "fill")?.map(|c| {
+    let fill_color = color(&get(spec, "fill"), "fill")?;
+    let fill = fill_color.as_ref().map(|c| {
         format!("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"{c}\"/><bgColor indexed=\"64\"/></patternFill></fill>")
     });
+    let dxf_fill = fill_color
+        .map(|c| format!("<fill><patternFill><bgColor rgb=\"{c}\"/></patternFill></fill>"));
     let border_color = color(&get(spec, "borderColor"), "borderColor")?;
     let border = parse_border(spec, border_color.as_deref())?;
 
@@ -269,6 +286,8 @@ fn parse(spec: &Object) -> Result<Format, JsValue> {
 
     Ok(Format {
         font,
+        dxf_font,
+        dxf_fill,
         fill,
         border,
         num_fmt,
@@ -291,6 +310,7 @@ impl Styles {
                 r#"<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>"#,
             ]),
             cache: HashMap::new(),
+            dxfs: Interner::new(&[]),
         }
     }
 
@@ -372,6 +392,27 @@ impl Styles {
         xf
     }
 
+    /// Index into <dxfs> for a format used by a conditional format.
+    pub fn dxf(&mut self, format: u32) -> u32 {
+        let f = &self.formats[format as usize];
+        let mut xml = String::from("<dxf>");
+        if let Some(font) = &f.dxf_font {
+            xml.push_str(font);
+        }
+        if let Some(code) = f.num_fmt.clone() {
+            let mut escaped = String::new();
+            push_escaped(&mut escaped, &code);
+            let id = 164 + self.num_fmts.id(escaped.clone());
+            let _ = write!(xml, "<numFmt numFmtId=\"{id}\" formatCode=\"{escaped}\"/>");
+        }
+        let f = &self.formats[format as usize];
+        for part in [&f.dxf_fill, &f.alignment, &f.border].into_iter().flatten() {
+            xml.push_str(part);
+        }
+        xml.push_str("</dxf>");
+        self.dxfs.id(xml) as u32
+    }
+
     pub fn xml(&self) -> String {
         let mut out = String::from(
             r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
@@ -406,7 +447,16 @@ impl Styles {
             self.xfs.list.len(),
             self.xfs.list.concat()
         );
-        out.push_str(r#"<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>"#);
+        out.push_str(r#"<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>"#);
+        if !self.dxfs.list.is_empty() {
+            let _ = write!(
+                out,
+                "<dxfs count=\"{}\">{}</dxfs>",
+                self.dxfs.list.len(),
+                self.dxfs.list.concat()
+            );
+        }
+        out.push_str("</styleSheet>");
         out
     }
 }

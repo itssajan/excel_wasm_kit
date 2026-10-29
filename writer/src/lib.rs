@@ -10,6 +10,7 @@ use js_sys::{Array, Date, Object, Reflect};
 use wasm_bindgen::prelude::*;
 use zip::{write::SimpleFileOptions, ZipWriter};
 
+mod rules;
 mod styles;
 use styles::{Kind, Styles};
 
@@ -79,6 +80,40 @@ export interface CsvOptions {
   escapeFormulas?: boolean;
   /** Start with a UTF-8 BOM, so Excel reads non-ASCII text correctly. Default `false`. */
   bom?: boolean;
+}
+export type RuleValue = number | string | Date | { formula: string };
+export type Operator =
+  | "between" | "notBetween" | "equal" | "notEqual"
+  | "greaterThan" | "lessThan" | "greaterThanOrEqual" | "lessThanOrEqual";
+export type ConditionalFormat =
+  /** Compare each cell's value. Strings are text; use `{ formula }` for formulas. */
+  | { type: "cell"; operator?: Operator; value: RuleValue; value2?: RuleValue; format: Format }
+  /** Formula relative to the range's top-left cell, like "$C2>100". */
+  | { type: "formula"; formula: string; format: Format }
+  | { type: "colorScale"; min?: string; mid?: string; max?: string }
+  | { type: "dataBar"; color?: string };
+export interface ValidationMessages {
+  /** Shown when the cell is selected. */
+  input?: { title?: string; message?: string };
+  /** Shown on invalid input. `stop` (default) rejects it. */
+  error?: { title?: string; message?: string; style?: "stop" | "warning" | "information" };
+  /** Allow empty cells. Default `true`. */
+  allowBlank?: boolean;
+}
+export type Validation = ValidationMessages & (
+  /** A dropdown of `values`, or of the cells in `source` (like "$H$1:$H$9"). */
+  | { type: "list"; values?: (string | number)[]; source?: string; dropdown?: boolean }
+  | { type: "whole" | "decimal" | "date" | "textLength"; operator?: Operator; value: RuleValue; value2?: RuleValue }
+  | { type: "custom"; formula: string }
+);
+export interface TableOptions {
+  /** Header names; the header row is written for you. */
+  columns: string[];
+  /** Unique in the workbook, letters/digits/_/. only. Default Table1, Table2, ... */
+  name?: string;
+  /** An Excel table style like "TableStyleMedium2" (default), "TableStyleLight9" or "TableStyleDark1". */
+  style?: string;
+  headerFormat?: Format;
 }
 export type WriterErrorCode = "INVALID_INPUT" | "CLOSED";
 "##;
@@ -391,6 +426,78 @@ enum Filter {
 }
 
 /// The sheet currently being written.
+/// An Excel table: header row at `first`, data rows until `last` (`None` while still open).
+struct Table {
+    /// Workbook-wide id, also its file number (xl/tables/table{id}.xml)
+    id: usize,
+    name: String,
+    columns: Vec<String>,
+    style: String,
+    first: u32,
+    last: Option<u32>,
+}
+
+impl Table {
+    fn area(&self) -> Area {
+        Area {
+            r1: self.first,
+            c1: 0,
+            r2: self.last.unwrap_or(MAX_ROWS - 1),
+            c2: self.columns.len() - 1,
+        }
+    }
+}
+
+fn check_table_name(name: &str, taken: &[String]) -> Result<(), JsValue> {
+    let valid = name.len() <= 255
+        && name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_' || c == '\\')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '\\'));
+    let upper = name.to_ascii_uppercase();
+    let cell_like = parse_ref(&upper).is_some()
+        || upper == "R"
+        || upper == "C"
+        || (upper.starts_with('R')
+            && upper[1..]
+                .split('C')
+                .all(|p| p.bytes().all(|b| b.is_ascii_digit())));
+    if !valid || cell_like {
+        return Err(invalid(&format!(
+            "'{name}' isn't a valid table name: use letters, digits, _ and ., start with a letter, and don't look like a cell (A1, R1C1)"
+        )));
+    }
+    if taken.iter().any(|t| t.eq_ignore_ascii_case(name)) {
+        return Err(invalid(&format!("A table named '{name}' already exists")));
+    }
+    Ok(())
+}
+
+/// Excel's built-in table styles (anything else makes Excel repair the file).
+fn check_table_style(style: &str) -> Result<(), JsValue> {
+    let ok = [
+        ("TableStyleLight", 21),
+        ("TableStyleMedium", 28),
+        ("TableStyleDark", 11),
+    ]
+    .iter()
+    .any(|(prefix, max)| {
+        style.strip_prefix(prefix).is_some_and(|digits| {
+            // "Medium2", not "Medium02"
+            digits
+                .parse::<u32>()
+                .is_ok_and(|n| (1..=*max).contains(&n) && digits == n.to_string())
+        })
+    });
+    if ok {
+        Ok(())
+    } else {
+        Err(invalid(&format!(
+            "'{style}' isn't an Excel table style: use TableStyleLight1-21, TableStyleMedium1-28 or TableStyleDark1-11"
+        )))
+    }
+}
+
 #[derive(Default)]
 struct Sheet {
     rows: u32,
@@ -399,6 +506,11 @@ struct Sheet {
     columns: Vec<Option<u32>>,
     merges: Vec<Area>,
     filter: Option<Filter>,
+    /// <conditionalFormatting> elements, and the rule priority counter they share
+    conditionals: Vec<String>,
+    priority: u32,
+    validations: Vec<String>,
+    tables: Vec<Table>,
 }
 
 struct Inner {
@@ -409,6 +521,9 @@ struct Inner {
     sheet: Sheet,
     /// (sheet index, range) of each autofilter, for workbook.xml's _FilterDatabase names
     filters: Vec<(usize, Area)>,
+    /// Table names across the workbook, and how many tables were written (their ids)
+    table_names: Vec<String>,
+    table_count: usize,
     styles: Styles,
     buf: String,
 }
@@ -424,7 +539,7 @@ impl Inner {
         self.zip()?;
         check_sheet_name(name, &self.sheets)?;
         // Everything before <sheetData> has to be known now: parse options before writing anything.
-        let mut head = format!("{XML}<worksheet xmlns=\"{NS}/spreadsheetml/2006/main\">");
+        let mut head = format!("{XML}<worksheet xmlns=\"{NS}/spreadsheetml/2006/main\" xmlns:r=\"{NS}/officeDocument/2006/relationships\">");
         let mut sheet = Sheet::default();
         if !options.is_undefined() && !options.is_null() {
             check_keys(options, "sheet", &["columns", "freeze", "autofilter"])?;
@@ -555,6 +670,7 @@ impl Inner {
         if self.sheets.is_empty() {
             return Ok(());
         }
+        self.end_table()?;
         let sheet = std::mem::take(&mut self.sheet);
         let mut tail = String::from("</sheetData>");
         let filter = match sheet.filter {
@@ -582,8 +698,152 @@ impl Inner {
             }
             tail.push_str("</mergeCells>");
         }
+        tail.push_str(&sheet.conditionals.concat());
+        if !sheet.validations.is_empty() {
+            let _ = write!(
+                tail,
+                "<dataValidations count=\"{}\">{}</dataValidations>",
+                sheet.validations.len(),
+                sheet.validations.concat()
+            );
+        }
+        if !sheet.tables.is_empty() {
+            let _ = write!(tail, "<tableParts count=\"{}\">", sheet.tables.len());
+            for i in 1..=sheet.tables.len() {
+                let _ = write!(tail, "<tablePart r:id=\"rId{i}\"/>");
+            }
+            tail.push_str("</tableParts>");
+        }
         tail.push_str("</worksheet>");
-        self.zip()?.write_all(tail.as_bytes()).map_err(io_error)
+        let n = self.sheets.len();
+        let zip = self.zip()?;
+        zip.write_all(tail.as_bytes()).map_err(io_error)?;
+        if sheet.tables.is_empty() {
+            return Ok(());
+        }
+        let mut rels = format!("{XML}<Relationships xmlns=\"{NS}/package/2006/relationships\">");
+        for (i, t) in sheet.tables.iter().enumerate() {
+            let _ = write!(rels, "<Relationship Id=\"rId{}\" Type=\"{NS}/officeDocument/2006/relationships/table\" Target=\"../tables/table{}.xml\"/>", i + 1, t.id);
+            zip.start_file(format!("xl/tables/table{}.xml", t.id), opts())
+                .map_err(zip_error)?;
+            zip.write_all(table_xml(t).as_bytes()).map_err(io_error)?;
+        }
+        rels.push_str("</Relationships>");
+        zip.start_file(format!("xl/worksheets/_rels/sheet{n}.xml.rels"), opts())
+            .map_err(zip_error)?;
+        zip.write_all(rels.as_bytes()).map_err(io_error)
+    }
+
+    fn add_table(&mut self, sheet: usize, options: &JsValue) -> Result<(), JsValue> {
+        self.open_sheet(sheet)?;
+        if !options.is_object() {
+            return Err(invalid("addTable needs { columns: [...] }"));
+        }
+        check_keys(
+            options,
+            "table",
+            &["columns", "name", "style", "headerFormat"],
+        )?;
+        if self.sheet.filter.is_some() {
+            return Err(invalid(
+                "This sheet has an autofilter; tables bring their own filter, so use one or the other",
+            ));
+        }
+        let columns: Vec<String> = get(options, "columns")
+            .dyn_into::<Array>()
+            .ok()
+            .and_then(|a| a.iter().map(|c| c.as_string()).collect::<Option<Vec<_>>>())
+            .filter(|c| !c.is_empty() && c.len() <= MAX_COLS)
+            .ok_or_else(|| invalid("columns must be a non-empty array of header names"))?;
+        let mut seen = HashSet::new();
+        for c in &columns {
+            if c.is_empty() || c.chars().count() > 255 || c.chars().any(char::is_control) {
+                return Err(invalid(&format!(
+                    "Table column '{c}' must be 1 to 255 characters, without line breaks"
+                )));
+            }
+            if !seen.insert(c.to_lowercase()) {
+                return Err(invalid(&format!("Table column '{c}' appears twice")));
+            }
+        }
+        let name = match get(options, "name").as_string() {
+            Some(n) => n,
+            None if get(options, "name").is_undefined() => {
+                format!("Table{}", self.table_count + 1)
+            }
+            None => return Err(invalid("name must be a string")),
+        };
+        check_table_name(&name, &self.table_names)?;
+        let style = get(options, "style")
+            .as_string()
+            .unwrap_or_else(|| "TableStyleMedium2".into());
+        check_table_style(&style)?;
+
+        self.end_table()?;
+        let area = Area {
+            r1: self.sheet.rows,
+            c1: 0,
+            r2: MAX_ROWS - 1,
+            c2: columns.len() - 1,
+        };
+        if self.sheet.merges.iter().any(|m| m.overlaps(&area)) {
+            return Err(invalid("This table would overlap a merged range"));
+        }
+        let header: Array = columns.iter().map(|c| JsValue::from(c.as_str())).collect();
+        self.add_row(sheet, &header, &get(options, "headerFormat"))?;
+        self.table_count += 1;
+        self.table_names.push(name.clone());
+        self.sheet.tables.push(Table {
+            id: self.table_count,
+            name,
+            columns,
+            style,
+            first: self.sheet.rows - 1,
+            last: None,
+        });
+        Ok(())
+    }
+
+    /// Close the open table (if any) at the last written row.
+    fn end_table(&mut self) -> Result<(), JsValue> {
+        let rows = self.sheet.rows;
+        let Some(t) = self.sheet.tables.last_mut().filter(|t| t.last.is_none()) else {
+            return Ok(());
+        };
+        if rows == t.first + 1 {
+            // A table needs a data row: reserve an empty one
+            self.sheet.rows += 1;
+        }
+        t.last = Some(self.sheet.rows - 1);
+        let area = t.area();
+        if self.sheet.merges.iter().any(|m| m.overlaps(&area)) {
+            return Err(invalid(&format!(
+                "Table '{}' overlaps a merged range",
+                t.name
+            )));
+        }
+        Ok(())
+    }
+
+    fn conditional_format(
+        &mut self,
+        sheet: usize,
+        range: &str,
+        rule: &JsValue,
+    ) -> Result<(), JsValue> {
+        self.open_sheet(sheet)?;
+        let area = Area::parse(range)?;
+        let xml = rules::conditional(&area, rule, &mut self.styles, &mut self.sheet.priority)?;
+        self.sheet.conditionals.push(xml);
+        Ok(())
+    }
+
+    fn validate(&mut self, sheet: usize, range: &str, rule: &JsValue) -> Result<(), JsValue> {
+        self.open_sheet(sheet)?;
+        let area = Area::parse(range)?;
+        let xml = rules::validation(&area, rule)?;
+        self.sheet.validations.push(xml);
+        Ok(())
     }
 
     fn open_sheet(&mut self, sheet: usize) -> Result<(), JsValue> {
@@ -609,6 +869,9 @@ impl Inner {
         // ponytail: O(n) per merge, O(n²) per sheet; fine for hand-made reports, index if someone merges 100k ranges
         if self.sheet.merges.iter().any(|m| m.overlaps(&area)) {
             return Err(invalid(&format!("'{range}' overlaps another merged range")));
+        }
+        if self.sheet.tables.iter().any(|t| t.area().overlaps(&area)) {
+            return Err(invalid(&format!("'{range}' overlaps a table")));
         }
         self.sheet.merges.push(area);
         Ok(())
@@ -675,6 +938,9 @@ impl Inner {
             let _ = write!(book, "\" sheetId=\"{n}\" r:id=\"rId{n}\"/>");
             let _ = write!(rels, "<Relationship Id=\"rId{n}\" Type=\"{NS}/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet{n}.xml\"/>");
         }
+        for id in 1..=self.table_count {
+            let _ = write!(types, "<Override PartName=\"/xl/tables/table{id}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml\"/>");
+        }
         types.push_str("</Types>");
         // fullCalcOnLoad: formulas written without a cached result get computed when Excel opens the file
         book.push_str("</sheets>");
@@ -709,6 +975,19 @@ impl Inner {
     }
 }
 
+fn table_xml(t: &Table) -> String {
+    let mut ref_ = String::new();
+    t.area().push(&mut ref_, false);
+    let mut out = format!("{XML}<table xmlns=\"{NS}/spreadsheetml/2006/main\" id=\"{0}\" name=\"{1}\" displayName=\"{1}\" ref=\"{ref_}\" totalsRowShown=\"0\"><autoFilter ref=\"{ref_}\"/><tableColumns count=\"{2}\">", t.id, t.name, t.columns.len());
+    for (i, c) in t.columns.iter().enumerate() {
+        let _ = write!(out, "<tableColumn id=\"{}\" name=\"", i + 1);
+        push_escaped(&mut out, c);
+        out.push_str("\"/>");
+    }
+    let _ = write!(out, "</tableColumns><tableStyleInfo name=\"{}\" showFirstColumn=\"0\" showLastColumn=\"0\" showRowStripes=\"1\" showColumnStripes=\"0\"/></table>", t.style);
+    out
+}
+
 fn opts() -> SimpleFileOptions {
     SimpleFileOptions::default()
 }
@@ -739,6 +1018,8 @@ impl XlsxWriter {
                 sheets: Vec::new(),
                 sheet: Sheet::default(),
                 filters: Vec::new(),
+                table_names: Vec::new(),
+                table_count: 0,
                 styles: Styles::new(),
                 buf: String::new(),
             })),
@@ -798,6 +1079,46 @@ impl SheetWriter {
     /// Merge a range like "A1:C1". Write the value into its top-left cell as usual.
     pub fn merge(&self, range: &str) -> Result<(), JsValue> {
         self.inner.borrow_mut().merge(self.index, range)
+    }
+
+    /// Highlight cells in `range` by rule: compare values, a formula, a color scale or data bars.
+    #[wasm_bindgen(js_name = conditionalFormat)]
+    pub fn conditional_format(
+        &self,
+        range: &str,
+        #[wasm_bindgen(unchecked_param_type = "ConditionalFormat")] rule: JsValue,
+    ) -> Result<(), JsValue> {
+        self.inner
+            .borrow_mut()
+            .conditional_format(self.index, range, &rule)
+    }
+
+    /// Restrict what can be typed into `range`: a dropdown list, numbers, dates, text length or a formula.
+    pub fn validate(
+        &self,
+        range: &str,
+        #[wasm_bindgen(unchecked_param_type = "Validation")] rule: JsValue,
+    ) -> Result<(), JsValue> {
+        self.inner.borrow_mut().validate(self.index, range, &rule)
+    }
+
+    /// Start an Excel table (banded rows, filter buttons) at the next row, from column A. Its
+    /// header row is written now; the rows you add next are the table, until `endTable()`,
+    /// the next `addTable()`, or the end of the sheet.
+    #[wasm_bindgen(js_name = addTable)]
+    pub fn add_table(
+        &self,
+        #[wasm_bindgen(unchecked_param_type = "TableOptions")] options: JsValue,
+    ) -> Result<(), JsValue> {
+        self.inner.borrow_mut().add_table(self.index, &options)
+    }
+
+    /// End the open table; rows added afterwards are outside it.
+    #[wasm_bindgen(js_name = endTable)]
+    pub fn end_table(&self) -> Result<(), JsValue> {
+        let mut inner = self.inner.borrow_mut();
+        inner.open_sheet(self.index)?;
+        inner.end_table()
     }
 }
 

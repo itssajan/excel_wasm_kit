@@ -232,3 +232,133 @@ test("rejects bad formats and options", () => {
   assert.throws(() => ws.addRow([{ value: 1, format: 99 }]), code("INVALID_INPUT"));
   assert.equal(toCsv([[{ value: "x", format: 0 }, { format: 0 }]]), "x,\n");
 });
+
+test("conditional formats: cell rules, formulas, color scales and data bars", () => {
+  const wb = new XlsxWriter();
+  const red = wb.format({ color: "#9c0006", fill: "#ffc7ce", bold: true });
+  const ws = wb.addSheet("S");
+  ws.addRow([1, 2, 3]);
+  ws.conditionalFormat("A1:A10", { type: "cell", operator: "greaterThan", value: 100, format: red });
+  ws.conditionalFormat("B1:B10", { type: "cell", operator: "between", value: new Date("2024-01-01T00:00:00Z"), value2: { formula: "=TODAY()" }, format: red });
+  ws.conditionalFormat("C1:C10", { type: "cell", operator: "equal", value: 'say "hi"', format: red });
+  ws.conditionalFormat("A1:C10", { type: "formula", formula: "=$C1>2", format: red });
+  ws.conditionalFormat("D1:D10", { type: "colorScale" });
+  ws.conditionalFormat("E1:E10", { type: "colorScale", min: "#ffffff", mid: "#ffeb84", max: "#63be7b" });
+  ws.conditionalFormat("F1:F10", { type: "dataBar", color: "#638ec6" });
+  const f = unzip(wb.save());
+  const sheet = f["xl/worksheets/sheet1.xml"];
+  assert.match(sheet, /<conditionalFormatting sqref="A1:A10"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>100<\/formula><\/cfRule><\/conditionalFormatting>/);
+  assert.match(sheet, /priority="2" operator="between"><formula>45292<\/formula><formula>TODAY\(\)<\/formula>/);
+  assert.match(sheet, /<formula>&quot;say &quot;&quot;hi&quot;&quot;&quot;<\/formula>/);
+  assert.match(sheet, /<cfRule type="expression" dxfId="0" priority="4"><formula>\$C1&gt;2<\/formula>/);
+  assert.match(sheet, /<colorScale><cfvo type="min" val="0"\/><cfvo type="max" val="0"\/><color rgb="FFF8696B"\/><color rgb="FF63BE7B"\/><\/colorScale>/);
+  assert.match(sheet, /<cfvo type="percentile" val="50"\/><cfvo type="max" val="0"\/><color rgb="FFFFFFFF"\/><color rgb="FFFFEB84"\/><color rgb="FF63BE7B"\/>/);
+  assert.match(sheet, /<dataBar><cfvo type="min"\/><cfvo type="max"\/><color rgb="FF638EC6"\/><\/dataBar>/);
+  assert.match(f["xl/styles.xml"], /<dxfs count="1"><dxf><font><b\/><color rgb="FF9C0006"\/><\/font><fill><patternFill><bgColor rgb="FFFFC7CE"\/><\/patternFill><\/fill><\/dxf><\/dxfs><\/styleSheet>$/);
+  // order inside <worksheet> matters to Excel
+  assert.ok(sheet.indexOf("</sheetData>") < sheet.indexOf("<conditionalFormatting"));
+});
+
+test("data validation: lists, numbers, dates, text length and formulas", () => {
+  const wb = new XlsxWriter();
+  const ws = wb.addSheet("S");
+  ws.validate("A2:A100", { type: "list", values: ["Yes", "No", 'Say "x"'], input: { title: "Pick", message: "Yes or no" } });
+  ws.validate("B2:B100", { type: "list", source: "=$H$1:$H$5", dropdown: false });
+  ws.validate("C2:C100", { type: "whole", value: 1, value2: 10, error: { title: "Oops", message: "1 to 10", style: "warning" } });
+  ws.validate("D2:D100", { type: "decimal", operator: "greaterThan", value: 0, allowBlank: false });
+  ws.validate("E2:E100", { type: "date", operator: "lessThanOrEqual", value: { formula: "TODAY()" } });
+  ws.validate("F2:F100", { type: "textLength", operator: "lessThan", value: 50 });
+  ws.validate("G2:G100", { type: "custom", formula: "ISNUMBER(G2)" });
+  const sheet = unzip(wb.save())["xl/worksheets/sheet1.xml"];
+  assert.match(sheet, /<dataValidations count="7">/);
+  assert.match(sheet, /<dataValidation type="list" allowBlank="1" showInputMessage="1" promptTitle="Pick" prompt="Yes or no" showErrorMessage="1" sqref="A2:A100"><formula1>&quot;Yes,No,Say &quot;&quot;x&quot;&quot;&quot;<\/formula1><\/dataValidation>/);
+  assert.match(sheet, /type="list" showDropDown="1" allowBlank="1" showErrorMessage="1" sqref="B2:B100"><formula1>\$H\$1:\$H\$5<\/formula1>/);
+  assert.match(sheet, /type="whole" operator="between" allowBlank="1" showErrorMessage="1" errorStyle="warning" errorTitle="Oops" error="1 to 10" sqref="C2:C100"><formula1>1<\/formula1><formula2>10<\/formula2>/);
+  assert.match(sheet, /type="decimal" operator="greaterThan" showErrorMessage="1" sqref="D2:D100"/);
+  assert.match(sheet, /<formula1>TODAY\(\)<\/formula1>/);
+  assert.match(sheet, /type="custom" allowBlank="1" showErrorMessage="1" sqref="G2:G100"><formula1>ISNUMBER\(G2\)<\/formula1>/);
+});
+
+test("tables: header written for you, range follows the rows", () => {
+  const wb = new XlsxWriter();
+  const head = wb.format({ bold: true });
+  const ws = wb.addSheet("Data");
+  ws.addRow(["Report"]);
+  ws.addTable({ columns: ["id", "name", "price"], name: "Orders", style: "TableStyleLight9", headerFormat: head });
+  ws.addRow([1, "Ann", 9.5]);
+  ws.addRow([2, "Bob", 3]);
+  ws.endTable();
+  ws.addRow(["after"]);
+  ws.addTable({ columns: ["still open"] });
+  ws.addRow(["its row"]); // no endTable(): the table ends with the sheet
+  const s2 = wb.addSheet("More");
+  s2.addTable({ columns: ["x"] }); // no data rows: an empty one is reserved
+  const bytes = wb.save();
+  const f = unzip(bytes);
+  assert.match(f["xl/tables/table1.xml"], /id="1" name="Orders" displayName="Orders" ref="A2:C4" totalsRowShown="0"><autoFilter ref="A2:C4"\/><tableColumns count="3"><tableColumn id="1" name="id"\/><tableColumn id="2" name="name"\/><tableColumn id="3" name="price"\/><\/tableColumns><tableStyleInfo name="TableStyleLight9"/);
+  assert.match(f["xl/tables/table2.xml"], /name="Table2" displayName="Table2" ref="A6:A7"/);
+  assert.match(f["xl/tables/table3.xml"], /name="Table3" displayName="Table3" ref="A1:A2"/);
+  assert.match(f["xl/worksheets/sheet1.xml"], /<tableParts count="2"><tablePart r:id="rId1"\/><tablePart r:id="rId2"\/><\/tableParts><\/worksheet>$/);
+  assert.match(f["xl/worksheets/_rels/sheet1.xml.rels"], /Target="..\/tables\/table2.xml"/);
+  assert.match(f["xl/worksheets/_rels/sheet2.xml.rels"], /Id="rId1" .*Target="..\/tables\/table3.xml"/);
+  assert.match(f["[Content_Types].xml"], /\/xl\/tables\/table3.xml/);
+  assert.ok(styleOf(f["xl/worksheets/sheet1.xml"], "A2") > 0, "header format");
+  assert.deepEqual(read(bytes, "Data"), [
+    ["Report", null, null],
+    ["id", "name", "price"],
+    [1, "Ann", 9.5],
+    [2, "Bob", 3],
+    ["after", null, null],
+    ["still open", null, null],
+    ["its row", null, null],
+  ]);
+});
+
+test("rejects bad rules and tables", () => {
+  const wb = new XlsxWriter();
+  const fmt = wb.format({ bold: true });
+  const ws = wb.addSheet("S");
+  for (const rule of [
+    { type: "nope" },
+    { type: "cell", value: 1 }, // no format
+    { type: "cell", operator: "bigger", value: 1, format: fmt },
+    { type: "cell", operator: "between", value: 1, format: fmt }, // no value2
+    { type: "cell", value: 1, value2: 2, format: fmt }, // value2 without between
+    { type: "colorScale", min: "red" },
+    { type: "dataBar", colour: "#ffffff" },
+  ]) {
+    assert.throws(() => ws.conditionalFormat("A1:A2", rule), code("INVALID_INPUT"), JSON.stringify(rule));
+  }
+  for (const rule of [
+    { type: "list" },
+    { type: "list", values: ["a,b"] },
+    { type: "list", values: ["x".repeat(300)] },
+    { type: "whole" },
+    { type: "custom" },
+    { type: "list", values: ["a"], error: { style: "panic" } },
+    { type: "list", values: ["a"], input: { title: "x".repeat(33) } },
+  ]) {
+    assert.throws(() => ws.validate("A1:A2", rule), code("INVALID_INPUT"), JSON.stringify(rule));
+  }
+  for (const t of [
+    {},
+    { columns: [] },
+    { columns: ["a", "A"] },
+    { columns: ["a\nb"] },
+    { columns: ["a"], name: "A1" },
+    { columns: ["a"], name: "R1C1" },
+    { columns: ["a"], name: "has space" },
+    { columns: ["a"], style: "TableStyleMedium29" },
+    { columns: ["a"], style: "TableStyleMedium02" },
+    { columns: ["a"], colour: "red" },
+  ]) {
+    assert.throws(() => ws.addTable(t), code("INVALID_INPUT"), JSON.stringify(t));
+  }
+  ws.addTable({ columns: ["a", "b"], name: "T" });
+  assert.throws(() => ws.merge("A3:B3"), code("INVALID_INPUT"), "merge inside the open table");
+  ws.endTable();
+  assert.throws(() => ws.addTable({ columns: ["a"], name: "t" }), code("INVALID_INPUT"), "duplicate name");
+  const filtered = wb.addSheet("F", { autofilter: true });
+  assert.throws(() => filtered.addTable({ columns: ["a"] }), code("INVALID_INPUT"), "autofilter + table");
+  assert.throws(() => ws.conditionalFormat("A1:A2", { type: "dataBar" }), code("CLOSED"));
+});
